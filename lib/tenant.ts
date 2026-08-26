@@ -1,0 +1,43 @@
+// lib/tenant.ts — every Console request resolves its own tenant.
+//
+// There is no build-time restaurant constant. The tenant comes from the
+// signed session cookie on each request, so one deployment serves every
+// paying restaurant. CONSOLE_RESTAURANT_ID exists only as a local-sandbox
+// convenience and is IGNORED in production, where an env-var tenant would
+// be a cross-restaurant data leak waiting to happen.
+import { getRestaurantId } from "./session";
+
+export function currentRestaurantId(req: Request) {
+  const fromSession = getRestaurantId(req);
+  if (fromSession) return fromSession;
+  if (process.env.NODE_ENV !== "production" && process.env.CONSOLE_RESTAURANT_ID) {
+    return process.env.CONSOLE_RESTAURANT_ID;
+  }
+  return null;
+}
+
+/** Resolve the tenant or throw a 401 Response the route can return. */
+export function requireRestaurant(req: Request) {
+  const restaurantId = currentRestaurantId(req);
+  if (!restaurantId) {
+    throw new Response(JSON.stringify({ error: "Not signed in." }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return restaurantId;
+}
+
+/** Wrap a route body so a thrown Response is returned rather than a 500. */
+export async function withTenant(
+  req: Request,
+  handler: (restaurantId: string) => Promise<Response>,
+) {
+  try {
+    return await handler(requireRestaurant(req));
+  } catch (error) {
+    if (error instanceof Response) return error;
+    console.error("[console]", error);
+    return Response.json({ error: "Something went wrong." }, { status: 500 });
+  }
+}

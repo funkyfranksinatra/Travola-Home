@@ -1,0 +1,621 @@
+// ═══════════════════════════════════════════════════════════════════
+// Travola Console — schema.prisma  (SHARED-DB build)
+//
+// The Console, Travola-OS (floor manager) and Travola-POS all point at
+// the SAME Postgres database (Neon). This schema mirrors the tables the
+// Console reads and the small set it owns:
+//
+//   · Console-owned:  Subscription, Invoice, AuditLog, DataExport
+//   · Read-mostly:    Restaurant, Server, Table, Floor, RestaurantSettings
+//   · Analytics read: Reservation, WaitlistEntry, Shift, ShiftServer,
+//                     Guest, ShiftForecast, ForecastAccuracy,
+//                     TableSession, ServiceEvent, Check, CheckItem,
+//                     Payment, MenuItem, MenuCategory
+//
+// ⚠ MIGRATION OWNERSHIP: the Travola-OS repo owns ALL migrations for
+// this database. NEVER run `prisma migrate` or `prisma db push` from
+// this repo — db push would reconcile the whole database to this
+// partial mirror and DROP the other apps' tables. This repo runs
+// `prisma generate` only. New tables introduced here (Subscription,
+// Invoice, AuditLog, DataExport) ship as a migration in Travola-OS.
+//
+// Same design rules as ever: cuid ids, integer cents, restaurantId
+// scoping on every query, snapshots-not-joins for anything printed.
+// ═══════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums (mirrored verbatim from Travola-OS) ───────────────────────
+
+enum ReservationStatus {
+  UPCOMING
+  CONFIRMED
+  ARRIVED
+  PARTIALLY_ARRIVED
+  SEATED
+  FINISHED
+  NO_SHOW
+  CANCELLED
+}
+
+enum WaitlistStatus {
+  WAITING
+  NOTIFIED
+  SEATED
+  LEFT
+}
+
+enum ShiftPeriod {
+  BRUNCH
+  LUNCH
+  DINNER
+}
+
+enum BookingSource {
+  MESAOS
+  PHONE
+  WALK_IN
+  OPENTABLE_IMPORT
+  RESY_IMPORT
+  PAPER_IMPORT
+}
+
+// ─── The account boundary ────────────────────────────────────────────
+
+/// Owned by the floor app. The Console reads it to verify the
+/// restaurant name + 4-digit passcode at sign-in (the same credential
+/// used on Travola-OS and Travola-POS), and it is the ONE place the
+/// Console writes credentials: passcode rotation and the separate
+/// owner/admin passcode that gates destructive actions.
+model Restaurant {
+  id            String   @id @default(cuid())
+  name          String
+  nameKey       String   @unique
+  passcodeHash  String
+  recoveryEmail String?
+  /// Console-added. A SECOND credential, distinct from the 4-digit
+  /// staff-facing passcode, required for irreversible acts (delete all
+  /// data, rotate the restaurant passcode). Null until an owner sets
+  /// one; while null the Console falls back to the restaurant passcode
+  /// and nags the owner to set a real one.
+  adminPasscodeHash String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  servers      Server[]
+  reservations Reservation[]
+  subscription Subscription?
+  invoices     Invoice[]
+  auditLogs    AuditLog[]
+}
+
+// ─── Console-owned: subscription & billing ───────────────────────────
+
+/// One row per restaurant. Provider-agnostic on purpose: `provider`
+/// is "stub" until a real payment processor is connected, at which
+/// point the same row carries the processor's ids and the Console
+/// keeps rendering from these columns rather than from live API calls
+/// (a billing page must not go blank when Stripe has a bad minute).
+model Subscription {
+  id           String     @id @default(cuid())
+  restaurantId String     @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  plan     String @default("standard") // starter | standard | pro
+  status   String @default("trialing") // trialing | active | past_due | canceled | paused
+  interval String @default("month")    // month | year
+
+  priceCents Int    @default(0)
+  currency   String @default("usd")
+  seats      Int    @default(1)
+
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  canceledAt         DateTime?
+  cancelReason       String?
+
+  provider               String  @default("stub") // stub | stripe
+  providerCustomerId     String?
+  providerSubscriptionId String?
+
+  /// Free-form billing contact + address snapshot. Snapshot, not join:
+  /// an invoice must still print the address it was issued to.
+  billingContact Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Issued invoices. Written by the billing provider adapter; the
+/// Console only ever reads them.
+model Invoice {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  number      String
+  status      String   @default("paid") // draft | open | paid | void | uncollectible
+  amountCents Int      @default(0)
+  taxCents    Int      @default(0)
+  totalCents  Int      @default(0)
+  currency    String   @default("usd")
+  periodStart DateTime?
+  periodEnd   DateTime?
+  issuedAt    DateTime @default(now())
+  paidAt      DateTime?
+  description String   @default("")
+  hostedUrl   String?
+  pdfUrl      String?
+
+  provider          String  @default("stub")
+  providerInvoiceId String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId, issuedAt])
+}
+
+// ─── Console-owned: audit trail ──────────────────────────────────────
+
+/// Every consequential Console act: credential changes, staff removal,
+/// plan changes, exports, deletions. This is what makes the product
+/// defensible in a security review, and what lets an owner answer
+/// "who deleted that?" six months later.
+model AuditLog {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  action  String // e.g. staff.pin_reset, data.export, plan.change
+  actor   String @default("") // display name / "owner"
+  summary String @default("")
+  detail  Json?
+  ip      String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+}
+
+/// A generated data export. The file itself is streamed to the browser
+/// and never stored; this row exists so an owner can see that an export
+/// happened, when, and how much left the building.
+model DataExport {
+  id           String   @id @default(cuid())
+  restaurantId String
+  format       String   @default("json") // json | csv
+  scope        String   @default("all")
+  rowCount     Int      @default(0)
+  byteCount    Int      @default(0)
+  requestedBy  String   @default("")
+  createdAt    DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+}
+
+// ─── Read-mostly: staff & floor ──────────────────────────────────────
+
+model Server {
+  id           String     @id @default(cuid())
+  name         String
+  colorHex     String?
+  roles        String[]
+  onShift      Boolean    @default(false)
+  aiExcluded   Boolean    @default(false)
+  pin          String?
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  reservations Reservation[]
+  shifts       ShiftServer[]
+
+  @@unique([restaurantId, pin])
+  @@index([restaurantId, active])
+}
+
+model Table {
+  id               String    @id @default(cuid())
+  name             String
+  capacity         Int
+  shape            String    @default("square")
+  area             String    @default("dining")
+  floorId          String    @default("f1")
+  x                Int       @default(0)
+  y                Int       @default(0)
+  rotation         Int       @default(0)
+  manualOnly       Boolean   @default(false)
+  onlineExcluded   Boolean   @default(false)
+  active           Boolean   @default(true)
+  status           String    @default("available")
+  party            String?
+  partySize        Int?
+  seatedAt         DateTime?
+  groupId          String?
+  assignedServerId String?
+  liveUpdatedAt    DateTime?
+  restaurantId     String
+
+  reservations ReservationTable[]
+
+  @@unique([restaurantId, floorId, name])
+  @@index([restaurantId, active, floorId])
+}
+
+model Floor {
+  id             String  @id
+  name           String
+  isManualOnly   Boolean @default(false)
+  onlineExcluded Boolean @default(false)
+  sortOrder      Int     @default(0)
+  active         Boolean @default(true)
+  restaurantId   String
+
+  @@index([restaurantId])
+}
+
+model RestaurantSettings {
+  id           String   @id @default("main")
+  openMinutes  Int?
+  closeMinutes Int?
+  roles        String[] @default(["waiter", "bartender"])
+  prefs        Json?
+  updatedAt    DateTime @updatedAt
+  restaurantId String   @unique
+}
+
+// ─── Read: the booking + service history the analysis tab lives on ───
+
+model Guest {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  email       String?
+  vip         Boolean  @default(false)
+  tags        String[]
+  notes       String?
+  totalVisits Int      @default(0)
+  noShowCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  restaurantId String
+
+  reservations    Reservation[]
+  waitlistEntries WaitlistEntry[]
+
+  @@unique([restaurantId, phone])
+  @@unique([restaurantId, email])
+  @@index([restaurantId, name])
+}
+
+model Reservation {
+  id        String            @id @default(cuid())
+  guestId   String
+  guest     Guest             @relation(fields: [guestId], references: [id])
+  partySize Int
+  status    ReservationStatus @default(UPCOMING)
+  source    BookingSource     @default(MESAOS)
+  notes     String?
+  tags      String[]
+  vip       Boolean           @default(false)
+
+  bookedAt     DateTime  @default(now())
+  targetTime   DateTime
+  seatedTime   DateTime?
+  finishedTime DateTime?
+  cancelledAt  DateTime?
+
+  serviceDate DateTime @db.Date
+  dayOfWeek   Int
+  turnMinutes Int?
+
+  serverId String?
+  server   Server? @relation(fields: [serverId], references: [id])
+
+  tables  ReservationTable[]
+  shiftId String?
+  shift   Shift?             @relation(fields: [shiftId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@index([restaurantId, serviceDate, status])
+  @@index([restaurantId, dayOfWeek, serviceDate])
+  @@index([restaurantId, guestId, serviceDate])
+}
+
+model ReservationTable {
+  reservationId String
+  tableId       String
+  isPrimary     Boolean @default(false)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  table       Table       @relation(fields: [tableId], references: [id])
+
+  @@id([reservationId, tableId])
+}
+
+model WaitlistEntry {
+  id        String         @id @default(cuid())
+  guestId   String?
+  guest     Guest?         @relation(fields: [guestId], references: [id])
+  name      String
+  partySize Int
+  status    WaitlistStatus @default(WAITING)
+  source    BookingSource  @default(WALK_IN)
+
+  arrivalTime   DateTime  @default(now())
+  quotedMinutes Int?
+  quotedTime    DateTime?
+  seatedTime    DateTime?
+  leftTime      DateTime?
+
+  actualWaitMinutes Int?
+
+  serviceDate DateTime @db.Date
+  dayOfWeek   Int
+
+  shiftId String?
+  shift   Shift?  @relation(fields: [shiftId], references: [id])
+
+  restaurantId String
+
+  @@index([restaurantId, serviceDate, status])
+  @@index([restaurantId, dayOfWeek, serviceDate])
+}
+
+model Shift {
+  id          String      @id @default(cuid())
+  serviceDate DateTime    @db.Date
+  period      ShiftPeriod
+  dayOfWeek   Int
+
+  predictedCovers  Int?
+  predictedServers Int?
+
+  actualCovers      Int    @default(0)
+  totalReservations Int    @default(0)
+  totalWalkIns      Int    @default(0)
+  noShows           Int    @default(0)
+  cancellations     Int    @default(0)
+  waitlistWalkAways Int    @default(0)
+  avgTurnMinutes    Float?
+  avgWaitMinutes    Float?
+  peakOccupancyPct  Float?
+  serversActual     Int?
+
+  features Json?
+
+  isFinalized Boolean   @default(false)
+  finalizedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  restaurantId String
+
+  reservations    Reservation[]
+  waitlistEntries WaitlistEntry[]
+  servers         ShiftServer[]
+
+  @@unique([restaurantId, serviceDate, period])
+}
+
+model ShiftServer {
+  shiftId      String
+  serverId     String
+  coversServed Int    @default(0)
+  tablesWorked Int    @default(0)
+
+  shift  Shift  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  server Server @relation(fields: [serverId], references: [id])
+
+  restaurantId String
+
+  @@id([shiftId, serverId])
+}
+
+model DailyBriefing {
+  id           String   @id @default(cuid())
+  restaurantId String
+  date         String
+  payload      Json
+  createdAt    DateTime @default(now())
+
+  @@unique([restaurantId, date])
+}
+
+model ShiftForecast {
+  id           String   @id @default(cuid())
+  restaurantId String
+  date         String
+  source       String
+  payload      Json
+  createdAt    DateTime @default(now())
+
+  @@index([restaurantId, date, source, createdAt])
+  @@index([restaurantId, createdAt])
+}
+
+model ForecastAccuracy {
+  id             String   @id @default(cuid())
+  restaurantId   String
+  date           String
+  predicted      Json
+  actual         Json
+  errorScore     Float
+  triggeredRerun Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@unique([restaurantId, date])
+}
+
+model ServiceDayStaff {
+  serviceDate DateTime @db.Date
+  roster      String[]
+  sections    Json?
+  updatedAt   DateTime @updatedAt
+
+  restaurantId String
+
+  @@id([restaurantId, serviceDate])
+}
+
+// ─── Read: the OS ↔ POS communication + analytics layer ──────────────
+
+model ServiceEvent {
+  id           String   @id @default(cuid())
+  seq          BigInt   @unique @default(autoincrement())
+  restaurantId String
+  source       String
+  type         String
+  partyKey     String?
+  tableIds     String[]
+  serverId     String?
+  checkId      String?
+  serviceDate  DateTime @db.Date
+  payload      Json?
+  createdAt    DateTime @default(now())
+
+  @@index([restaurantId, seq])
+  @@index([restaurantId, serviceDate, type])
+}
+
+model TableSession {
+  id                 String    @id @default(cuid())
+  restaurantId       String
+  serviceDate        DateTime  @db.Date
+  partyKey           String?
+  partyName          String?
+  tableIds           String[]
+  primaryTableId     String
+  serverId           String?
+  guestCount         Int?
+  seatedAt           DateTime
+  firstOrderAt       DateTime?
+  lastFireAt         DateTime?
+  lastBumpAt         DateTime?
+  checkPaidAt        DateTime?
+  clearedAt          DateTime?
+  turnMinutes        Int?
+  paidToClearMinutes Int?
+  checkId            String?
+  subtotalCents      Int?
+  totalCents         Int?
+  tipCents           Int?
+  ppaCents           Int?
+  courseTimings      Json?
+  moves              Json?
+  origin             String    @default("floor")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([restaurantId, serviceDate])
+  @@index([restaurantId, primaryTableId, clearedAt])
+  @@index([restaurantId, checkId])
+}
+
+// ─── Read: the POS catalog and money ─────────────────────────────────
+
+model MenuCategory {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  sortOrder    Int        @default(0)
+  active       Boolean    @default(true)
+  items        MenuItem[]
+
+  @@index([restaurantId])
+}
+
+model MenuItem {
+  id           String       @id @default(cuid())
+  restaurantId String
+  categoryId   String
+  category     MenuCategory @relation(fields: [categoryId], references: [id])
+  name         String
+  priceCents   Int
+  station      String
+  active       Boolean      @default(true)
+  sortOrder    Int          @default(0)
+  ephemeral    Boolean      @default(false)
+  expiresAt    DateTime?
+  description  String       @default("")
+  createdBy    String       @default("")
+
+  @@index([restaurantId, categoryId])
+}
+
+model Check {
+  id            String      @id @default(cuid())
+  restaurantId  String
+  partyKey      String?
+  tableLabel    String
+  tableId       String?
+  serverId      String?
+  serverName    String      @default("")
+  status        String      @default("open")
+  openedAt      DateTime    @default(now())
+  closedAt      DateTime?
+  subtotalCents Int         @default(0)
+  taxCents      Int         @default(0)
+  tipCents      Int         @default(0)
+  totalCents    Int         @default(0)
+  guestCount    Int         @default(1)
+  currentCourse Int         @default(1)
+  items         CheckItem[]
+  payments      Payment[]
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, openedAt])
+}
+
+model CheckItem {
+  id           String    @id @default(cuid())
+  checkId      String
+  check        Check     @relation(fields: [checkId], references: [id])
+  menuItemId   String
+  nameSnapshot String
+  priceCents   Int
+  quantity     Int       @default(1)
+  seat         Int?
+  course       Int       @default(1)
+  modifiers    Json
+  station      String
+  state        String    @default("held")
+  note         String    @default("")
+  firedAt      DateTime?
+  bumpedAt     DateTime?
+  voidReason   String?
+
+  @@index([checkId])
+}
+
+model Payment {
+  id                    String   @id @default(cuid())
+  restaurantId          String
+  checkId               String
+  check                 Check    @relation(fields: [checkId], references: [id])
+  method                String
+  amountCents           Int
+  tipCents              Int      @default(0)
+  stripePaymentIntentId String?
+  status                String   @default("captured")
+  createdAt             DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+}

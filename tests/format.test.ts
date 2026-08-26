@@ -1,0 +1,64 @@
+// tests/format.test.ts — the rule that a missing number never prints as zero.
+import { strict as assert } from "node:assert";
+import { test } from "node:test";
+import { DASH, dateLabel, decimal, delta, formatMetric, integer, minutes, money, percent, periodLabel, shortDate } from "../lib/format.ts";
+import type { Metric } from "../lib/analytics/types.ts";
+
+const metric = (over: Partial<Metric>): Metric => ({
+  key: "k", label: "L", group: "volume", unit: "count", value: null, available: "ready", ...over,
+});
+
+test("null renders as a dash, never as zero", () => {
+  assert.equal(money(null), DASH);
+  assert.equal(integer(null), DASH);
+  assert.equal(percent(null), DASH);
+  assert.equal(minutes(null), DASH);
+  assert.equal(decimal(null), DASH);
+  assert.equal(delta(null), DASH);
+  assert.equal(formatMetric(metric({ value: null, unit: "cents" })), DASH);
+  // Zero is a real value and must still print as zero.
+  assert.equal(money(0), "$0.00");
+  assert.equal(integer(0), "0");
+});
+
+test("money switches off cents only for large figures", () => {
+  assert.equal(money(1234), "$12.34");
+  assert.equal(money(99999), "$999.99");
+  assert.equal(money(100000), "$1,000");
+  assert.equal(money(12345678), "$123,457");
+  assert.equal(money(-1250), "-$12.50");
+});
+
+test("minutes become hours past the hour mark", () => {
+  // The separator is a non-breaking space on purpose: "45" and "min"
+  // must not be split across a line inside a narrow metric card.
+  assert.equal(minutes(45), "45\u00A0min");
+  assert.equal(minutes(59), "59\u00A0min");
+  assert.equal(minutes(60), "1h");
+  assert.equal(minutes(95), "1h\u00A035m");
+  assert.equal(minutes(-20), "-20\u00A0min", "a negative pace figure stays readable");
+});
+
+test("delta carries an explicit sign and a real minus glyph", () => {
+  assert.equal(delta(12.34), "+12.3%");
+  assert.equal(delta(-3), "−3.0%");
+  assert.equal(delta(0), "0.0%");
+});
+
+test("metric formatting follows the unit", () => {
+  assert.equal(formatMetric(metric({ unit: "cents", value: 4599 })), "$45.99");
+  assert.equal(formatMetric(metric({ unit: "percent", value: 12.345 })), "12.3%");
+  assert.equal(formatMetric(metric({ unit: "minutes", value: 92 })), "1h\u00A032m");
+  assert.equal(formatMetric(metric({ unit: "count", value: 16439 })), "16,439");
+  assert.equal(formatMetric(metric({ unit: "text", value: "6 pm" })), "6 pm");
+  // Average party size keeps a decimal; other people-counts do not.
+  assert.equal(formatMetric(metric({ key: "avg_party", unit: "people", value: 3.87 })), "3.9");
+  assert.equal(formatMetric(metric({ key: "covers", unit: "people", value: 6900 })), "6,900");
+});
+
+test("dates render in UTC so a service day never slips by one", () => {
+  assert.equal(dateLabel("2026-08-03"), "Mon, Aug 3, 2026");
+  assert.equal(shortDate("2026-01-01"), "Jan 1");
+  assert.equal(dateLabel("nonsense"), "nonsense");
+  assert.equal(periodLabel("DINNER"), "Dinner");
+});

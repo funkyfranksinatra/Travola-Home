@@ -1,0 +1,486 @@
+// lib/analytics/queries.ts — the aggregation layer.
+//
+// Everything here is raw SQL on purpose. Sixteen thousand reservations
+// is already too many to pull into Node and reduce, and the number only
+// goes one way: rolling up in Postgres keeps the analysis tab at a
+// handful of grouped scans no matter how much history a restaurant
+// brings with it. Each query is scoped by restaurantId in its WHERE
+// clause — there is no query in this file that could return another
+// restaurant's rows.
+//
+// ⚠ TWO CLOCKS LIVE IN THIS DATABASE. Getting this wrong silently moves
+// every dinner service into brunch, so it is spelled out here:
+//
+//   · The floor app writes Reservation/WaitlistEntry times as LOCAL WALL
+//     CLOCK into naive `timestamp without time zone` columns. Volario's
+//     16:00–21:00 service is stored as 16:00–21:00, and the floor app
+//     reads it back with getHours() on a UTC server — which returns the
+//     stored local hour unchanged. So the Console reads those columns
+//     NAIVELY too. (Verified against production: targetTime hours run
+//     16–21, exactly the configured 960–1260 service window. Converting
+//     them through America/Denver produced hours of 9–15 and filed the
+//     entire dinner history as brunch.)
+//
+//   · The POS writes Check/TableSession timestamps from now(), so those
+//     ARE real UTC instants and DO need converting to the restaurant's
+//     zone before a local hour or a service date is taken from them.
+//
+// Until the two apps agree, this file is where the seam is handled, and
+// `localFromUtc` vs a bare column reference is the difference.
+import { prisma } from "../prisma";
+import { Prisma } from "../generated/prisma";
+
+/**
+ * Turn times outside this band are excluded, not clamped.
+ *
+ * Production carries 37 reservations with turn times up to 14,370
+ * minutes — tables that were seated and never cleared, so finishedTime
+ * landed days later. They are 0.2% of the rows and would move the mean
+ * turn time by tens of minutes. The count of what was dropped is
+ * surfaced to the UI rather than hidden.
+ */
+export const TURN_MIN_MINUTES = 10;
+export const TURN_MAX_MINUTES = 360;
+
+const SANE_TURN = Prisma.sql`"turnMinutes" BETWEEN ${TURN_MIN_MINUTES} AND ${TURN_MAX_MINUTES}`;
+const SANE_TURN_R = Prisma.sql`r."turnMinutes" BETWEEN ${TURN_MIN_MINUTES} AND ${TURN_MAX_MINUTES}`;
+
+/**
+ * How far past midnight still counts as the previous service day. A
+ * check closed at 00:40 belongs to the night that produced it, not to
+ * the morning it happened to end in.
+ */
+const SERVICE_DAY_CUTOFF_HOURS = 5;
+
+/** A POS UTC instant, rendered in the restaurant's own clock. */
+const localFromUtc = (col: Prisma.Sql, tz: string) =>
+  Prisma.sql`(${col} AT TIME ZONE 'UTC' AT TIME ZONE ${tz})`;
+
+/** The service day a POS timestamp belongs to. */
+const posServiceDay = (col: Prisma.Sql, tz: string) =>
+  Prisma.sql`DATE(${localFromUtc(col, tz)} - INTERVAL '${Prisma.raw(String(SERVICE_DAY_CUTOFF_HOURS))} hours')`;
+
+// The statuses that mean "this party actually ate here". Imported
+// history lands as FINISHED; a live service moves SEATED -> FINISHED.
+const SERVED = Prisma.sql`status IN ('SEATED'::"ReservationStatus", 'FINISHED'::"ReservationStatus")`;
+const NOT_CANCELLED = Prisma.sql`status <> 'CANCELLED'::"ReservationStatus"`;
+
+/** Local-clock hour of a FLOOR-APP timestamp (already local wall clock). */
+const floorHour = (col: Prisma.Sql) => Prisma.sql`EXTRACT(HOUR FROM ${col})`;
+
+export type Bounds = {
+  firstServiceDate: Date | null;
+  lastServiceDate: Date | null;
+  reservations: bigint;
+  importedReservations: bigint;
+  waitlistEntries: bigint;
+  tableSessions: bigint;
+  closedChecks: bigint;
+  firstCheckAt: Date | null;
+  guests: bigint;
+};
+
+/** What history exists at all — drives the range picker and the gaps banner. */
+export async function loadBounds(restaurantId: string): Promise<Bounds> {
+  const rows = await prisma.$queryRaw<Bounds[]>`
+    SELECT
+      (SELECT MIN("serviceDate") FROM "Reservation" WHERE "restaurantId" = ${restaurantId}) AS "firstServiceDate",
+      (SELECT MAX("serviceDate") FROM "Reservation" WHERE "restaurantId" = ${restaurantId}) AS "lastServiceDate",
+      (SELECT COUNT(*) FROM "Reservation" WHERE "restaurantId" = ${restaurantId}) AS "reservations",
+      (SELECT COUNT(*) FROM "Reservation" WHERE "restaurantId" = ${restaurantId}
+         AND source IN ('OPENTABLE_IMPORT'::"BookingSource", 'RESY_IMPORT'::"BookingSource", 'PAPER_IMPORT'::"BookingSource")) AS "importedReservations",
+      (SELECT COUNT(*) FROM "WaitlistEntry" WHERE "restaurantId" = ${restaurantId}) AS "waitlistEntries",
+      (SELECT COUNT(*) FROM "TableSession" WHERE "restaurantId" = ${restaurantId}) AS "tableSessions",
+      (SELECT COUNT(*) FROM "Check" WHERE "restaurantId" = ${restaurantId} AND status = 'closed') AS "closedChecks",
+      (SELECT MIN("openedAt") FROM "Check" WHERE "restaurantId" = ${restaurantId} AND status = 'closed') AS "firstCheckAt",
+      (SELECT COUNT(*) FROM "Guest" WHERE "restaurantId" = ${restaurantId}) AS "guests"
+  `;
+  return rows[0];
+}
+
+export type ShiftRollupRow = {
+  d: Date;
+  period: string;
+  dow: number;
+  parties: bigint;
+  covers: bigint | null;
+  no_shows: bigint;
+  cancellations: bigint;
+  walk_in_parties: bigint;
+  imported_parties: bigint;
+  avg_party: string | null;
+  avg_turn: string | null;
+  median_turn: string | null;
+  turn_outliers: bigint;
+  avg_seat_delay: string | null;
+  vip_parties: bigint;
+};
+
+/**
+ * The spine of the analysis tab: one row per service day and period,
+ * derived from reservations rather than from the Shift table.
+ *
+ * This is deliberate. Shift rows only exist for days the floor app has
+ * finalised — four of them here — while the reservation history runs
+ * nineteen months back. Deriving the shift list from reservations is
+ * what makes "all past shifts, as far back as there is data" true for
+ * imported history too.
+ */
+export async function loadShiftRollup(restaurantId: string, from: Date, to: Date) {
+  return prisma.$queryRaw<ShiftRollupRow[]>`
+    WITH r AS (
+      SELECT
+        "serviceDate" AS d,
+        "dayOfWeek" AS dow,
+        CASE
+          WHEN ${floorHour(Prisma.sql`COALESCE("seatedTime", "targetTime")`)} < 11 THEN 'BRUNCH'
+          WHEN ${floorHour(Prisma.sql`COALESCE("seatedTime", "targetTime")`)} < 16 THEN 'LUNCH'
+          ELSE 'DINNER'
+        END AS period,
+        "partySize",
+        status,
+        source,
+        vip,
+        "turnMinutes",
+        CASE WHEN "seatedTime" IS NOT NULL
+             THEN EXTRACT(EPOCH FROM ("seatedTime" - "targetTime")) / 60.0 END AS seat_delay
+      FROM "Reservation"
+      WHERE "restaurantId" = ${restaurantId}
+        AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+    )
+    SELECT
+      d, dow, period,
+      COUNT(*) FILTER (WHERE ${NOT_CANCELLED})                                   AS parties,
+      SUM("partySize") FILTER (WHERE ${SERVED})                                  AS covers,
+      COUNT(*) FILTER (WHERE status = 'NO_SHOW'::"ReservationStatus")            AS no_shows,
+      COUNT(*) FILTER (WHERE status = 'CANCELLED'::"ReservationStatus")          AS cancellations,
+      COUNT(*) FILTER (WHERE source = 'WALK_IN'::"BookingSource" AND ${NOT_CANCELLED}) AS walk_in_parties,
+      COUNT(*) FILTER (WHERE source IN ('OPENTABLE_IMPORT'::"BookingSource",'RESY_IMPORT'::"BookingSource",'PAPER_IMPORT'::"BookingSource")) AS imported_parties,
+      COUNT(*) FILTER (WHERE vip AND ${NOT_CANCELLED})                           AS vip_parties,
+      AVG("partySize") FILTER (WHERE ${SERVED})                                  AS avg_party,
+      AVG("turnMinutes") FILTER (WHERE ${SANE_TURN})                             AS avg_turn,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "turnMinutes")
+        FILTER (WHERE ${SANE_TURN})                                              AS median_turn,
+      COUNT(*) FILTER (WHERE "turnMinutes" IS NOT NULL AND NOT (${SANE_TURN}))   AS turn_outliers,
+      AVG(seat_delay) FILTER (WHERE seat_delay IS NOT NULL AND seat_delay BETWEEN -120 AND 240) AS avg_seat_delay
+    FROM r
+    GROUP BY d, dow, period
+    ORDER BY d DESC, period
+  `;
+}
+
+export type MoneyDayRow = {
+  d: Date;
+  checks: bigint;
+  revenue: bigint | null;
+  subtotal: bigint | null;
+  tips: bigint | null;
+  guests: bigint | null;
+  median_check: string | null;
+};
+
+/** Money per service day, from closed checks. Empty until the POS runs. */
+export async function loadMoneyByDay(restaurantId: string, tz: string, from: Date, to: Date) {
+  return prisma.$queryRaw<MoneyDayRow[]>`
+    SELECT
+      ${posServiceDay(Prisma.sql`"openedAt"`, tz)} AS d,
+      COUNT(*)                            AS checks,
+      SUM("totalCents")                   AS revenue,
+      SUM("subtotalCents")                AS subtotal,
+      SUM("tipCents")                     AS tips,
+      SUM("guestCount")                   AS guests,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "totalCents") AS median_check
+    FROM "Check"
+    WHERE "restaurantId" = ${restaurantId}
+      AND status = 'closed'
+      AND ${posServiceDay(Prisma.sql`"openedAt"`, tz)} >= ${from}
+      AND ${posServiceDay(Prisma.sql`"openedAt"`, tz)} <= ${to}
+    GROUP BY 1
+    ORDER BY 1 DESC
+  `;
+}
+
+export type MonthRow = { month: string; covers: bigint | null; parties: bigint; revenue: bigint | null };
+
+/** Monthly covers — the series behind month-over-month and year-over-year. */
+export async function loadMonthlyCovers(restaurantId: string) {
+  return prisma.$queryRaw<MonthRow[]>`
+    SELECT
+      TO_CHAR("serviceDate", 'YYYY-MM')            AS month,
+      SUM("partySize") FILTER (WHERE ${SERVED})    AS covers,
+      COUNT(*) FILTER (WHERE ${NOT_CANCELLED})     AS parties,
+      NULL::bigint                                 AS revenue
+    FROM "Reservation"
+    WHERE "restaurantId" = ${restaurantId}
+    GROUP BY 1
+    ORDER BY 1
+  `;
+}
+
+export async function loadMonthlyRevenue(restaurantId: string, tz: string) {
+  return prisma.$queryRaw<MonthRow[]>`
+    SELECT
+      TO_CHAR(${posServiceDay(Prisma.sql`"openedAt"`, tz)}, 'YYYY-MM') AS month,
+      NULL::bigint                                      AS covers,
+      COUNT(*)                                          AS parties,
+      SUM("totalCents")                                 AS revenue
+    FROM "Check"
+    WHERE "restaurantId" = ${restaurantId} AND status = 'closed'
+    GROUP BY 1
+    ORDER BY 1
+  `;
+}
+
+export type BucketRow = { bucket: number; covers: bigint | null; parties: bigint; avg_turn: string | null };
+
+/** Covers by local hour — where the peak actually is. */
+export async function loadHourly(restaurantId: string, from: Date, to: Date) {
+  return prisma.$queryRaw<BucketRow[]>`
+    SELECT
+      ${floorHour(Prisma.sql`COALESCE("seatedTime", "targetTime")`)}::int AS bucket,
+      SUM("partySize") FILTER (WHERE ${SERVED})                                AS covers,
+      COUNT(*) FILTER (WHERE ${NOT_CANCELLED})                                 AS parties,
+      NULL::numeric                                                            AS avg_turn
+    FROM "Reservation"
+    WHERE "restaurantId" = ${restaurantId}
+      AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+    GROUP BY 1 ORDER BY 1
+  `;
+}
+
+/** Covers by day of week, and how long a table sits on each. */
+export async function loadDayOfWeek(restaurantId: string, from: Date, to: Date) {
+  return prisma.$queryRaw<BucketRow[]>`
+    SELECT
+      "dayOfWeek"::int                          AS bucket,
+      SUM("partySize") FILTER (WHERE ${SERVED}) AS covers,
+      COUNT(*) FILTER (WHERE ${NOT_CANCELLED})  AS parties,
+      AVG("turnMinutes") FILTER (WHERE ${SANE_TURN}) AS avg_turn
+    FROM "Reservation"
+    WHERE "restaurantId" = ${restaurantId}
+      AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+    GROUP BY 1 ORDER BY 1
+  `;
+}
+
+/**
+ * Party-size distribution and the turn time each size actually takes —
+ * the pair that tells a manager whether their two-tops are the
+ * constraint or their sixes are.
+ */
+export async function loadPartySize(restaurantId: string, from: Date, to: Date) {
+  return prisma.$queryRaw<BucketRow[]>`
+    SELECT
+      LEAST("partySize", 12)::int               AS bucket,
+      SUM("partySize") FILTER (WHERE ${SERVED}) AS covers,
+      COUNT(*) FILTER (WHERE ${SERVED})         AS parties,
+      AVG("turnMinutes") FILTER (WHERE ${SANE_TURN}) AS avg_turn
+    FROM "Reservation"
+    WHERE "restaurantId" = ${restaurantId}
+      AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+      AND "partySize" > 0
+    GROUP BY 1 ORDER BY 1
+  `;
+}
+
+export type ItemRow = {
+  name: string;
+  quantity: bigint;
+  revenue: bigint;
+  price: string;
+  checks: bigint;
+};
+
+/** Item mix from closed checks. Voided lines are excluded, not counted as zero. */
+export async function loadItemMix(restaurantId: string, tz: string, from: Date, to: Date) {
+  return prisma.$queryRaw<ItemRow[]>`
+    SELECT
+      ci."nameSnapshot"                          AS name,
+      SUM(ci.quantity)                           AS quantity,
+      SUM(ci.quantity * ci."priceCents")         AS revenue,
+      AVG(ci."priceCents")                       AS price,
+      COUNT(DISTINCT ci."checkId")               AS checks
+    FROM "CheckItem" ci
+    JOIN "Check" c ON c.id = ci."checkId"
+    WHERE c."restaurantId" = ${restaurantId}
+      AND c.status = 'closed'
+      AND ci.state <> 'voided'
+      AND ${posServiceDay(Prisma.sql`c."openedAt"`, tz)} >= ${from}
+      AND ${posServiceDay(Prisma.sql`c."openedAt"`, tz)} <= ${to}
+    GROUP BY 1
+    ORDER BY quantity DESC
+  `;
+}
+
+/**
+ * Active menu items that have never appeared on a closed check.
+ *
+ * More useful than "least sold": a dish that sold twice is a dish with a
+ * problem, but a dish that has never sold at all may not even be
+ * reaching the guest — wrong section of the menu, or never entered.
+ */
+export async function loadNeverSold(restaurantId: string) {
+  return prisma.$queryRaw<Array<{ name: string; priceCents: number }>>`
+    SELECT mi.name, mi."priceCents"
+    FROM "MenuItem" mi
+    WHERE mi."restaurantId" = ${restaurantId}
+      AND mi.active
+      AND NOT mi.ephemeral
+      AND NOT EXISTS (
+        SELECT 1 FROM "CheckItem" ci
+        JOIN "Check" c ON c.id = ci."checkId"
+        WHERE c."restaurantId" = ${restaurantId}
+          AND c.status = 'closed'
+          AND ci.state <> 'voided'
+          AND ci."nameSnapshot" = mi.name
+      )
+    ORDER BY mi.name
+    LIMIT 50
+  `;
+}
+
+export type ServerRow = {
+  serverId: string;
+  name: string;
+  shifts: bigint;
+  covers: bigint | null;
+  parties: bigint;
+  avg_turn: string | null;
+  avg_check: string | null;
+};
+
+/** Per-server performance. Covers and turn come from the floor; money joins in from the POS when it exists. */
+export async function loadServerPerformance(restaurantId: string, from: Date, to: Date) {
+  return prisma.$queryRaw<ServerRow[]>`
+    SELECT
+      s.id                                        AS "serverId",
+      s.name                                      AS name,
+      COUNT(DISTINCT r."serviceDate")             AS shifts,
+      SUM(r."partySize") FILTER (WHERE ${SERVED}) AS covers,
+      COUNT(r.id) FILTER (WHERE ${NOT_CANCELLED}) AS parties,
+      AVG(r."turnMinutes") FILTER (WHERE ${SANE_TURN_R}) AS avg_turn,
+      (SELECT AVG(c."totalCents") FROM "Check" c
+        WHERE c."restaurantId" = ${restaurantId} AND c.status = 'closed' AND c."serverId" = s.id
+      )                                           AS avg_check
+    FROM "Server" s
+    LEFT JOIN "Reservation" r
+      ON r."serverId" = s.id
+     AND r."restaurantId" = ${restaurantId}
+     AND r."serviceDate" >= ${from} AND r."serviceDate" <= ${to}
+    WHERE s."restaurantId" = ${restaurantId}
+    GROUP BY s.id, s.name
+    HAVING COUNT(r.id) > 0
+    ORDER BY covers DESC NULLS LAST
+  `;
+}
+
+export type WaitlistRow = {
+  entries: bigint;
+  seated: bigint;
+  left: bigint;
+  avg_quoted: string | null;
+  avg_actual: string | null;
+  covers: bigint | null;
+};
+
+/** Walk-in volume and how honest the quote was. */
+export async function loadWaitlist(restaurantId: string, from: Date, to: Date) {
+  const rows = await prisma.$queryRaw<WaitlistRow[]>`
+    SELECT
+      COUNT(*)                                                  AS entries,
+      COUNT(*) FILTER (WHERE status = 'SEATED'::"WaitlistStatus") AS seated,
+      COUNT(*) FILTER (WHERE status = 'LEFT'::"WaitlistStatus")   AS "left",
+      AVG("quotedMinutes") FILTER (WHERE "quotedMinutes" > 0)     AS avg_quoted,
+      AVG("actualWaitMinutes") FILTER (WHERE "actualWaitMinutes" > 0) AS avg_actual,
+      SUM("partySize") FILTER (WHERE status = 'SEATED'::"WaitlistStatus") AS covers
+    FROM "WaitlistEntry"
+    WHERE "restaurantId" = ${restaurantId}
+      AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+  `;
+  return rows[0];
+}
+
+export type GuestRow = { total_guests: bigint; repeat_guests: bigint; repeat_covers: bigint | null; new_covers: bigint | null };
+
+/**
+ * Repeat-guest share, measured over the window rather than from
+ * Guest.totalVisits — a lifetime counter would call every guest a
+ * "repeat" the moment they returned once in 2025.
+ */
+export async function loadGuestRetention(restaurantId: string, from: Date, to: Date) {
+  const rows = await prisma.$queryRaw<GuestRow[]>`
+    WITH visits AS (
+      SELECT "guestId", COUNT(*) AS n, SUM("partySize") AS covers
+      FROM "Reservation"
+      WHERE "restaurantId" = ${restaurantId}
+        AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+        AND ${SERVED}
+      GROUP BY "guestId"
+    )
+    SELECT
+      COUNT(*)                                  AS total_guests,
+      COUNT(*) FILTER (WHERE n > 1)             AS repeat_guests,
+      SUM(covers) FILTER (WHERE n > 1)          AS repeat_covers,
+      SUM(covers) FILTER (WHERE n = 1)          AS new_covers
+    FROM visits
+  `;
+  return rows[0];
+}
+
+export type PaceRow = {
+  sessions: bigint;
+  avg_seat_to_order: string | null;
+  avg_paid_to_clear: string | null;
+  avg_turn: string | null;
+  avg_ppa: string | null;
+};
+
+/** POS-side pace: how long before the first order, how long after the check is paid. */
+export async function loadPace(restaurantId: string, from: Date, to: Date) {
+  const rows = await prisma.$queryRaw<PaceRow[]>`
+    SELECT
+      COUNT(*)                                                                       AS sessions,
+      AVG(EXTRACT(EPOCH FROM ("firstOrderAt" - "seatedAt")) / 60.0)
+        FILTER (WHERE "firstOrderAt" IS NOT NULL)                                    AS avg_seat_to_order,
+      AVG("paidToClearMinutes") FILTER (WHERE "paidToClearMinutes" IS NOT NULL)       AS avg_paid_to_clear,
+      AVG("turnMinutes") FILTER (WHERE ${SANE_TURN})                                  AS avg_turn,
+      AVG("ppaCents") FILTER (WHERE "ppaCents" > 0)                                   AS avg_ppa
+    FROM "TableSession"
+    WHERE "restaurantId" = ${restaurantId}
+      AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+  `;
+  return rows[0];
+}
+
+export type ForecastRow = { date: string; predicted: number | null; actual: number | null };
+
+/**
+ * Predicted covers against what actually happened. Reads the forecast
+ * cache rather than the Shift table so it covers every day the AI
+ * published a number for, finalised or not.
+ */
+export async function loadForecastAccuracy(restaurantId: string, from: Date, to: Date) {
+  return prisma.$queryRaw<ForecastRow[]>`
+    WITH latest AS (
+      SELECT DISTINCT ON (date) date, payload
+      FROM "ShiftForecast"
+      WHERE "restaurantId" = ${restaurantId}
+      ORDER BY date, "createdAt" DESC
+    ), actual AS (
+      SELECT TO_CHAR("serviceDate", 'YYYY-MM-DD') AS date,
+             SUM("partySize") FILTER (WHERE ${SERVED}) AS covers
+      FROM "Reservation"
+      WHERE "restaurantId" = ${restaurantId}
+        AND "serviceDate" >= ${from} AND "serviceDate" <= ${to}
+      GROUP BY 1
+    )
+    SELECT
+      latest.date                                                   AS date,
+      (latest.payload -> 'covers' ->> 'expected')::numeric::int      AS predicted,
+      actual.covers::int                                             AS actual
+    FROM latest
+    JOIN actual ON actual.date = latest.date
+    ORDER BY latest.date DESC
+    LIMIT 120
+  `;
+}

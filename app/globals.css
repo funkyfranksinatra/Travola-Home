@@ -1,0 +1,297 @@
+/* ============================================================================
+   Travola Console — Midnight (Soft) Theme
+   ----------------------------------------------------------------------------
+   The colour system is lifted VERBATIM from Travola-OS and Travola-POS so the
+   three products read as one. Every bg-*, text-*, border-*, ring-* utility the
+   Console uses resolves to a variable defined here, exactly as it does there.
+
+   What is new is the STYLE layer below the colours. The Console ships three
+   complete visual treatments — ledger, brief and console — selected by a
+   `data-style` attribute on <html>. They share this palette and differ in
+   density, radius, type scale and how a number is presented. That is what
+   makes them genuinely different designs to choose between rather than three
+   shades of the same page, and it is why choosing one later is an attribute
+   change rather than a rewrite.
+   ========================================================================== */
+
+@import "tailwindcss";
+
+/* --- Colour system: identical to the floor app and the POS --------------- */
+@theme {
+  /* Canvas + elevation ladder. Depth comes from surface FILL, not outlines. */
+  --color-bg:         #121214;
+  --color-panel:      #161619;
+  --color-panel-card: #1e1e22;
+  --color-panel-up:   #27272c;
+
+  /* Type: soft off-white primary, muted secondary. */
+  --color-ink-50:  #e4e4e7;
+  --color-ink-200: #c4c4cc;
+  --color-ink-400: #a1a1aa;
+
+  /* Faint hairlines, never high-contrast strokes. */
+  --color-border:    rgba(244,244,245,0.07);
+  --color-border-hi: rgba(244,244,245,0.13);
+
+  /* Accent — the same desaturated indigo the other two apps use. */
+  --color-ai:       #818cf8;
+  --color-ai-bg:    rgba(129,140,248,0.12);
+  --color-ai-muted: rgba(129,140,248,0.10);
+
+  /* Semantic states, shared with the floor app's reservation colours. */
+  --color-state-avail:      #52c794;
+  --color-state-availBg:    rgba(82,199,148,0.12);
+  --color-state-seated:     #ec7e7e;
+  --color-state-seatedBg:   rgba(236,126,126,0.12);
+  --color-state-reserved:   #a896e0;
+  --color-state-reservedBg: rgba(168,150,224,0.12);
+  --color-state-dining:     #e0b063;
+  --color-state-diningBg:   rgba(224,176,99,0.12);
+
+  --color-black: #0c0c0e;
+  --color-white: #f3f3f5;
+}
+
+@theme inline {
+  --font-sans:    var(--font-geist-sans);
+  --font-mono:    var(--font-geist-mono);
+  --font-display: var(--font-geist-sans);
+}
+
+/* --- Base ---------------------------------------------------------------- */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink-50);
+  color-scheme: dark;
+
+  /* Style-layer tokens. These are the ONLY things the three variants
+     change; every component reads them rather than hard-coding a value. */
+  --shell-radius: 12px;
+  --shell-gap: 1rem;
+  --card-pad: 1rem;
+  --card-radius: 12px;
+  --card-bg: var(--color-panel-card);
+  --card-border: 1px solid var(--color-border);
+  --metric-size: 1.75rem;
+  --metric-weight: 600;
+  --metric-family: var(--font-sans);
+  --metric-tracking: -0.02em;
+  --label-size: 0.6875rem;
+  --label-tracking: 0.08em;
+  --label-transform: uppercase;
+  --row-pad-y: 0.5rem;
+  --table-font: var(--font-mono);
+  --nav-width: 220px;
+  --section-gap: 1.5rem;
+  --heading-size: 1.125rem;
+  --heading-weight: 600;
+  --heading-tracking: -0.01em;
+  --grid-min: 210px;
+  --grid-gap: 0.75rem;
+}
+
+/* --- Style A: "Ledger" ---------------------------------------------------
+   Dense, data-first, hairline-ruled. The closest relative to an OpenTable
+   or Resy back-office: small type, tight rows, monospaced numerals so
+   columns of figures line up, and almost no rounding. Best when the job is
+   scanning a long history rather than admiring a headline.                 */
+[data-style="ledger"] {
+  --shell-radius: 4px;
+  --shell-gap: 0.5rem;
+  --card-pad: 0.75rem 0.875rem;
+  --card-radius: 4px;
+  --card-bg: var(--color-panel-card);
+  --card-border: 1px solid var(--color-border);
+  --metric-size: 1.375rem;
+  --metric-weight: 600;
+  --metric-family: var(--font-mono);
+  --metric-tracking: -0.03em;
+  --label-size: 0.625rem;
+  --row-pad-y: 0.375rem;
+  --nav-width: 196px;
+  --section-gap: 1rem;
+  --heading-size: 0.9375rem;
+  /* Ruled, not boxed: the ledger reads as a sheet of figures with
+     hairlines between them, so more of them fit on one screen and the
+     eye runs down a column instead of hopping between cards. */
+  --card-bg: transparent;
+  --card-border: 0;
+  --grid-min: 160px;
+  --grid-gap: 0;
+}
+/* Horizontal rules only. A vertical rule on an auto-filled grid leaves a
+   ragged hanging edge wherever the last row is short, which looks like a
+   rendering bug rather than a design. */
+[data-style="ledger"] .tv-card {
+  border-bottom: 1px solid var(--color-border);
+  padding-right: 1.25rem;
+}
+[data-style="ledger"] .tv-metric-grid > .tv-card:hover { background: var(--color-panel-card); }
+[data-style="ledger"] .tv-card.tv-panel {
+  background: var(--color-panel-card);
+  border: 1px solid var(--color-border);
+}
+
+/* --- Style B: "Brief" ----------------------------------------------------
+   Editorial and airy. Large headline numbers, generous padding, soft
+   rounding, sentence-case labels, charts given room to breathe. Reads like
+   a weekly report an owner would forward to a partner. Best on a laptop or
+   a big screen, and the friendliest to someone who is not looking at this
+   every day.                                                               */
+[data-style="brief"] {
+  --shell-radius: 18px;
+  --shell-gap: 1.5rem;
+  --card-pad: 1.5rem;
+  --card-radius: 18px;
+  --card-bg: var(--color-panel-card);
+  --card-border: 1px solid var(--color-border);
+  --metric-size: 2.5rem;
+  --metric-weight: 300;
+  --metric-family: var(--font-sans);
+  --metric-tracking: -0.04em;
+  --label-size: 0.8125rem;
+  --label-tracking: 0;
+  --label-transform: none;
+  --row-pad-y: 0.875rem;
+  --table-font: var(--font-sans);
+  --nav-width: 240px;
+  --section-gap: 2.5rem;
+  --heading-size: 1.375rem;
+  --heading-weight: 500;
+  --grid-min: 260px;
+  --grid-gap: 1.25rem;
+}
+
+/* --- Style C: "Console" --------------------------------------------------
+   The operator's view, and the closest match to the POS floor screen:
+   panel-on-panel surfaces, a raised card fill rather than an outlined one,
+   medium density, mono labels. Feels like part of the same machine as the
+   POS, which matters if the same manager moves between the two all night. */
+[data-style="console"] {
+  --shell-radius: 10px;
+  --shell-gap: 0.875rem;
+  --card-pad: 1rem 1.125rem;
+  --card-radius: 10px;
+  --card-bg: var(--color-panel-up);
+  --card-border: 1px solid transparent;
+  --metric-size: 1.875rem;
+  --metric-weight: 600;
+  --metric-family: var(--font-mono);
+  --metric-tracking: -0.03em;
+  --label-size: 0.6875rem;
+  --label-tracking: 0.1em;
+  --row-pad-y: 0.5rem;
+  --nav-width: 212px;
+  --section-gap: 1.5rem;
+  --grid-min: 220px;
+  --grid-gap: 0.875rem;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink-50);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+button, a, [role="button"], summary {
+  transition: background-color .15s ease, border-color .15s ease,
+              color .15s ease, box-shadow .15s ease;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ai);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-ai-bg);
+  color: var(--color-ink-50);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-panel-up) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-panel-up);
+  border-radius: 9999px;
+  border: 2px solid var(--color-bg);
+}
+*::-webkit-scrollbar-thumb:hover { background: #34343b; }
+
+/* --- Style-driven primitives --------------------------------------------
+   Components use these classes instead of hard-coded Tailwind values, so a
+   style switch actually changes the design rather than only the colours. */
+
+/* The metric grid is style-driven too: the ledger packs six across, the
+   brief gives each number room. One component tree, three densities. */
+.tv-metric-grid {
+  display: grid;
+  gap: var(--grid-gap);
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min), 1fr));
+}
+
+.tv-card {
+  background: var(--card-bg);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  padding: var(--card-pad);
+}
+
+.tv-label {
+  font-size: var(--label-size);
+  letter-spacing: var(--label-tracking);
+  text-transform: var(--label-transform);
+  color: var(--color-ink-400);
+  font-weight: 500;
+}
+
+.tv-metric {
+  font-size: var(--metric-size);
+  font-weight: var(--metric-weight);
+  font-family: var(--metric-family), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: var(--metric-tracking);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tv-heading {
+  font-size: var(--heading-size);
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
+}
+
+.tv-table { font-family: var(--table-font), ui-sans-serif, system-ui, sans-serif; }
+.tv-table td, .tv-table th {
+  padding-top: var(--row-pad-y);
+  padding-bottom: var(--row-pad-y);
+  font-variant-numeric: tabular-nums;
+}
+/* NOTE: no `text-align` here. `.tv-table thead th` is more specific than
+   Tailwind's `.text-right`, so setting alignment in this rule silently
+   overrode every right-aligned numeric header and left the figures
+   sitting a column to the right of their labels. Alignment belongs in the
+   markup, next to the column it describes. */
+.tv-table thead th {
+  font-size: var(--label-size);
+  letter-spacing: var(--label-tracking);
+  text-transform: var(--label-transform);
+  color: var(--color-ink-400);
+  font-weight: 500;
+}
+.tv-table th { text-align: left; }
+.tv-table th.text-right, .tv-table td.text-right { text-align: right; }
+
+/* Availability treatments — a missing metric must LOOK missing. */
+.tv-missing { color: var(--color-ink-400); }
+.tv-missing .tv-metric { opacity: 0.35; font-weight: 400; }
+
+@media print {
+  body { background: #fff; color: #000; }
+  .tv-no-print { display: none !important; }
+}
