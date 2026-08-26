@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Delta, Empty, StatTile } from "@/components/charts";
 import { PageHeader } from "@/components/ui";
-import { FloorPlan, type PlanTable } from "@/components/FloorPlan";
+import { FloorPlan, type PlanFloor, type PlanTable } from "@/components/FloorPlan";
 import { dateLabel, formatMetric, integer, money } from "@/lib/format";
 import type { Metric, SeriesPoint } from "@/lib/analytics/types";
 import type { SubscriptionView, InvoiceView } from "@/lib/billing";
@@ -22,6 +22,7 @@ type Overview = {
   recentInvoices: InvoiceView[];
   floor: { staffCount: number; tableCount: number; seatCount: number; floorCount: number; openChecks: number; lastServiceDate: string | null };
   tables: PlanTable[];
+  floors: PlanFloor[];
   headline: {
     rangeLabel: string;
     metrics: Metric[];
@@ -64,7 +65,10 @@ export default function OverviewPage() {
       <Hero data={data} />
       <Attention data={data} />
 
-      <section className="grid gap-5 lg:grid-cols-5">
+      {/* items-start: the plan is drawn at the room's own proportions, so
+          letting the grid stretch it to the height of the taller right-hand
+          stack just adds a band of empty card under the drawing. */}
+      <section className="grid gap-5 lg:grid-cols-5 items-start">
         <div className="lg:col-span-3 card p-5">
           <div className="flex items-baseline justify-between gap-4 mb-4">
             <div>
@@ -77,7 +81,7 @@ export default function OverviewPage() {
               </a>
             ) : null}
           </div>
-          <FloorPlan tables={data.tables} />
+          <FloorPlan tables={data.tables} floors={data.floors} />
         </div>
 
         <div className="lg:col-span-2 flex flex-col gap-4">

@@ -229,18 +229,18 @@ function Credentials({ adminSet, restaurantName, onSaved }: {
 
   return (
     <section className="grid gap-4 lg:grid-cols-2">
-      <Card className="p-5 p-5">
+      <Card className="flex flex-col">
         <SectionHeading title="Restaurant code" note={`Opens the floor manager, the POS and Travola Home for ${restaurantName}.`} />
         <p className="text-sm text-ink-400">
           Change it and everyone will need the new four digits. Managers who have a device signed in stay signed in
           until they sign out.
         </p>
-        <div className="mt-3">
+        <div className="mt-auto pt-4">
           <Button onClick={() => { setMode("rotate_passcode"); setDone(null); }}>Change restaurant code</Button>
         </div>
       </Card>
 
-      <Card className={adminSet ? "" : "border-l-2 border-l-state-dining"}>
+      <Card className={`flex flex-col ${adminSet ? "" : "border-l-2 border-l-state-dining"}`}>
         <SectionHeading
           title="Owner code"
           note="A second, private code that gates deleting data and changing the restaurant code."
@@ -249,11 +249,11 @@ function Credentials({ adminSet, restaurantName, onSaved }: {
           <p className="text-sm text-ink-400">Set. Required for anything irreversible.</p>
         ) : (
           <p className="text-sm text-ink-200">
-            Not set. Until you set one, deleting data falls back to the same four digits the whole floor uses — which
-            is not a credential your staff should not have.
+            Not set. Until you set one, deleting data falls back to the same four digits the whole floor
+            already knows.
           </p>
         )}
-        <div className="mt-3">
+        <div className="mt-auto pt-4">
           <Button tone={adminSet ? "default" : "primary"} onClick={() => { setMode("set_admin_passcode"); setDone(null); }}>
             {adminSet ? "Change owner code" : "Set an owner code"}
           </Button>

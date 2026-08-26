@@ -253,10 +253,13 @@ export default function SettingsPage() {
       </section>
 
       <Card className="p-5">
-        <SectionHeading title="Connected apps" note="Set on this deployment as environment variables." />
+        <SectionHeading
+          title="Your other two apps"
+          note="Same restaurant name and code as this one. Nothing to set up — every restaurant uses these addresses, and the sign-in decides which restaurant you see."
+        />
         <div className="grid gap-3 sm:grid-cols-2">
-          <LinkRow label="Floor manager" href={data.links.floor} envVar="NEXT_PUBLIC_FLOOR_URL" />
-          <LinkRow label="POS" href={data.links.pos} envVar="NEXT_PUBLIC_POS_URL" />
+          <LinkRow label="Floor manager" hint="Reservations, waitlist, sections" href={data.links.floor} />
+          <LinkRow label="POS" hint="Orders, kitchen, checks" href={data.links.pos} />
         </div>
       </Card>
 
@@ -290,19 +293,17 @@ function NumberCard({ label, value, suffix, hint, onChange }: {
   );
 }
 
-function LinkRow({ label, href, envVar }: { label: string; href: string; envVar: string }) {
+function LinkRow({ label, hint, href }: { label: string; hint: string; href: string }) {
   return (
-    <div className="rounded-xl bg-panel border border-border px-4 py-3">
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="block rounded-xl bg-panel border border-border px-4 py-3 hover:border-border-hi"
+    >
       <p className="label">{label}</p>
-      {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="block text-sm text-ai hover:underline mt-1.5 truncate">
-          {href} ↗
-        </a>
-      ) : (
-        <p className="text-sm text-ink-400 mt-1.5">
-          Not set. Add <code className="text-ink-200">{envVar}</code> to this deployment.
-        </p>
-      )}
-    </div>
+      <p className="text-sm text-ink-50 mt-1.5">{hint}</p>
+      <p className="text-xs text-ai mt-1.5 truncate">{href} ↗</p>
+    </a>
   );
 }

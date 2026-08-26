@@ -8,10 +8,24 @@
 // plan, the heatmap, the ranked bars — not from decorating containers.
 import type { ReactNode } from "react";
 
+/**
+ * A card pads ITSELF. Padding used to be every caller's job, and two of
+ * them forgot — the owner-code card and the plan cards rendered with
+ * their text jammed against the border while the cards beside them
+ * looked right. That is not a mistake worth being able to make.
+ *
+ * The caller can still override by passing its own `p-*` utility: this
+ * detects one and stands down, because leaving both in place would leave
+ * Tailwind's stylesheet order to decide which wins, and it does not
+ * decide by what the caller wrote last.
+ */
+const HAS_PADDING = /(^|\s)p[xytrbl]?-\S/;
+
 export function Card({ children, className = "", lit = false, as: Tag = "div" }: {
   children: ReactNode; className?: string; lit?: boolean; as?: "div" | "section" | "article";
 }) {
-  return <Tag className={`card ${lit ? "card-lit" : ""} ${className}`}>{children}</Tag>;
+  const padding = HAS_PADDING.test(className) ? "" : "p-5";
+  return <Tag className={`card ${lit ? "card-lit" : ""} ${padding} ${className}`}>{children}</Tag>;
 }
 
 export function SectionHeading({ title, note, action }: { title: string; note?: ReactNode; action?: ReactNode }) {

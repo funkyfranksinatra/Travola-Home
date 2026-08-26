@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { prisma } from "@/lib/prisma";
+import { appLinks } from "@/lib/apps";
 import { configProblems } from "@/lib/env";
 import { HOME_SESSION_COOKIE, restaurantIdFromCookieValue } from "@/lib/session";
 
@@ -42,10 +43,7 @@ export default async function HomeLayout({ children }: { children: React.ReactNo
   return (
     <Shell
       restaurantName={restaurant.name}
-      links={{
-        floor: process.env.NEXT_PUBLIC_FLOOR_URL ?? "",
-        pos: process.env.NEXT_PUBLIC_POS_URL ?? "",
-      }}
+      links={appLinks()}
     >
       {children}
     </Shell>

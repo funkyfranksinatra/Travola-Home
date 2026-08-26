@@ -5,6 +5,7 @@
 // like, and the headline of the next AI forecast.
 import { prisma } from "@/lib/prisma";
 import { withTenant } from "@/lib/tenant";
+import { appLinks } from "@/lib/apps";
 import { buildAnalysis } from "@/lib/analytics/analysis";
 import { billing } from "@/lib/billing";
 import { hasAdminPasscode } from "@/lib/restaurant-auth";
@@ -20,7 +21,7 @@ function todayKey() {
 export async function GET(request: Request) {
   return withTenant(request, async (restaurantId) => {
     const today = todayKey();
-    const [restaurant, subscription, invoices, staffCount, tables, openChecks, forecast, lastService, adminSet, analysis] =
+    const [restaurant, subscription, invoices, staffCount, tables, openChecks, forecast, lastService, adminSet, floors, analysis] =
       await Promise.all([
         prisma.restaurant.findUnique({
           where: { id: restaurantId },
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
         // stable between renders rather than following insertion order.
         prisma.table.findMany({
           where: { restaurantId, active: true },
-          orderBy: [{ floorId: "asc" }, { y: "asc" }, { x: "asc" }],
+          orderBy: [{ y: "asc" }, { x: "asc" }],
           select: { id: true, name: true, capacity: true, shape: true, area: true, x: true, y: true, rotation: true, floorId: true },
         }),
         prisma.check.count({ where: { restaurantId, status: "open" } }),
@@ -47,10 +48,18 @@ export async function GET(request: Request) {
           select: { serviceDate: true },
         }),
         hasAdminPasscode(restaurantId),
+        // Floors in the floor app's own order — the plan draws ONE of
+        // them at a time, and this decides which is first.
+        prisma.floor.findMany({
+          where: { restaurantId, active: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          select: { id: true, name: true, sortOrder: true },
+        }),
         // One grouped-SQL pass gives the overview its headline figures and
         // their sparklines, rather than four more round trips.
         buildAnalysis({ restaurantId, range: "30d" }),
       ]);
+
 
     const cookie = request.headers
       .get("cookie")
@@ -78,7 +87,18 @@ export async function GET(request: Request) {
         openChecks,
         lastServiceDate: lastService?.serviceDate?.toISOString().slice(0, 10) ?? null,
       },
-      tables: tables.map(({ floorId: _floorId, ...table }) => table),
+      tables,
+      // A floor with no active tables is not a room anyone can look at,
+      // so it never becomes the default view.
+      floors: floors
+        .map((floor) => ({
+          ...floor,
+          tables: tables.filter((table) => table.floorId === floor.id).length,
+          seats: tables
+            .filter((table) => table.floorId === floor.id)
+            .reduce((sum, table) => sum + (table.capacity || 0), 0),
+        }))
+        .filter((floor) => floor.tables > 0),
       headline: {
         rangeLabel: analysis.range.label,
         metrics: analysis.metrics.filter((metric) =>
@@ -102,10 +122,7 @@ export async function GET(request: Request) {
         adminPasscodeSet: adminSet,
         adminWindowMs: adminWindowRemaining(cookie),
       },
-      links: {
-        floor: process.env.NEXT_PUBLIC_FLOOR_URL ?? "",
-        pos: process.env.NEXT_PUBLIC_POS_URL ?? "",
-      },
+      links: appLinks(),
     });
   });
 }

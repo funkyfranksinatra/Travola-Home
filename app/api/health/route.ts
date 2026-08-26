@@ -6,6 +6,7 @@
 // value, so it is safe to hit from anywhere.
 import { configProblems } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
+import { travolaApps } from "@/lib/apps";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,11 @@ export async function GET() {
       configuration: {
         DATABASE_URL: Boolean(process.env.DATABASE_URL),
         SESSION_SECRET: Boolean(process.env.SESSION_SECRET),
-        NEXT_PUBLIC_FLOOR_URL: Boolean(process.env.NEXT_PUBLIC_FLOOR_URL),
-        NEXT_PUBLIC_POS_URL: Boolean(process.env.NEXT_PUBLIC_POS_URL),
       },
+      // Not configuration: the other two apps are the same deployments for
+      // every restaurant, so their addresses are built in. Reported so a
+      // deliberate override is visible.
+      apps: travolaApps().map((app) => ({ name: app.name, url: app.url, overridden: app.overridden })),
       problems,
       database,
     },

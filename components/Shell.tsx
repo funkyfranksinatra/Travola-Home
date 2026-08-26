@@ -141,13 +141,6 @@ function Launcher({ links }: { links: { floor: string; pos: string } }) {
 }
 
 function LaunchItem({ href, title, hint }: { href: string; title: string; hint: string }) {
-  if (!href) {
-    return (
-      <span className="block px-3 py-2.5 text-xs text-ink-400/70 border-b border-border last:border-0">
-        {title} — no URL configured
-      </span>
-    );
-  }
   return (
     <a
       href={href}

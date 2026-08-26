@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withTenant, requireRestaurant } from "@/lib/tenant";
+import { appLinks } from "@/lib/apps";
 import { audit } from "@/lib/audit";
 import { nameKey } from "@/lib/restaurant-auth";
 import { mergePrefs } from "@/lib/settings-prefs";
@@ -78,10 +79,7 @@ export async function GET(request: Request) {
         address: typeof location.address === "string" ? location.address : "",
       },
       inventory: { tables: counts[0], floors: counts[1], menuItems: counts[2], staff: counts[3] },
-      links: {
-        floor: process.env.NEXT_PUBLIC_FLOOR_URL ?? "",
-        pos: process.env.NEXT_PUBLIC_POS_URL ?? "",
-      },
+      links: appLinks(),
       dayNames: DAY_NAMES,
     });
   });

@@ -16,6 +16,7 @@
 // A restaurant that has not built a floor plan yet gets a clearly-labelled
 // TEMPLATE room instead of an empty box, so the page still shows what this
 // panel is for.
+import { useState } from "react";
 import { rotatedSizePx, tileSizePx } from "@/lib/floor-geometry";
 
 export type PlanTable = {
@@ -27,7 +28,10 @@ export type PlanTable = {
   x: number;
   y: number;
   rotation: number;
+  floorId?: string;
 };
+
+export type PlanFloor = { id: string; name: string; tables: number; seats: number };
 
 /** A generic 14-table room, used only when the restaurant has none. */
 const TEMPLATE: PlanTable[] = [
@@ -55,12 +59,26 @@ const AREA_TONE: Record<string, { fill: string; stroke: string; text: string }> 
 };
 const toneFor = (area: string) => AREA_TONE[area] ?? AREA_TONE.dining;
 
-export function FloorPlan({ tables, showLegend = true }: {
+export function FloorPlan({ tables, floors = [], showLegend = true }: {
   tables: PlanTable[];
+  /** In the floor app's own order. The first is what opens. */
+  floors?: PlanFloor[];
   showLegend?: boolean;
 }) {
-  const isTemplate = tables.length === 0;
-  const room = isTemplate ? TEMPLATE : tables;
+  // ONE floor at a time. Every floor shares the same coordinate space in
+  // the floor app — a table at (200, 140) on the patio and one at
+  // (200, 140) in the bar are both at (200, 140) — so drawing them
+  // together stacks four rooms on top of each other and produces a mess
+  // that looks like a bug because it is one.
+  const [floorId, setFloorId] = useState<string | null>(floors[0]?.id ?? null);
+  const active = floors.find((floor) => floor.id === floorId) ?? floors[0] ?? null;
+
+  const onThisFloor = active
+    ? tables.filter((table) => table.floorId === active.id)
+    : tables;
+
+  const isTemplate = onThisFloor.length === 0;
+  const room = isTemplate ? TEMPLATE : onThisFloor;
 
   // Bounding box from the painted footprints, so a rotated communal table
   // cannot push the room off its own canvas.
@@ -94,8 +112,42 @@ export function FloorPlan({ tables, showLegend = true }: {
   // floor. Between 1.8 and 2.8 both failure modes stay off the page.
   const aspect = Math.min(2.8, Math.max(1.8, width / depth));
 
+  // The panel's ratio is clamped, the room's is not, so the two rarely
+  // agree — and `meet` resolves that disagreement by letterboxing, which
+  // parks the room against one edge with a dead band opposite it. Growing
+  // the viewBox to the panel's ratio instead centres the room and lets the
+  // floor grid run to all four edges: the panel reads as a room with space
+  // around it rather than as a drawing that failed to fill its box.
+  const boxW = Math.max(width, depth * aspect);
+  const boxH = Math.max(depth, width / aspect);
+  const boxX = minX - (boxW - width) / 2;
+  const boxY = minY - (boxH - depth) / 2;
+
   return (
     <figure className="m-0">
+      {floors.length > 1 ? (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {floors.map((floor) => {
+            const selected = floor.id === active?.id;
+            return (
+              <button
+                key={floor.id}
+                type="button"
+                onClick={() => setFloorId(floor.id)}
+                aria-pressed={selected}
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold border ${
+                  selected
+                    ? "bg-ai-bg border-ai/40 text-ai"
+                    : "bg-panel border-border text-ink-400 hover:text-ink-50"
+                }`}
+              >
+                {floor.name}
+                <span className="ml-1.5 font-normal opacity-70 tabular-nums">{floor.tables}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <div
         className="relative rounded-xl overflow-hidden bg-bg border border-border"
         style={{ aspectRatio: `${aspect}`, minHeight: 200 }}
@@ -103,7 +155,7 @@ export function FloorPlan({ tables, showLegend = true }: {
         {/* A faint floor grid. Purely orienting — it is what makes the room
             read as a room rather than as scattered rectangles. */}
         <svg
-          viewBox={`${minX} ${minY} ${width} ${depth}`}
+          viewBox={`${boxX} ${boxY} ${boxW} ${boxH}`}
           preserveAspectRatio="xMidYMid meet"
           className="w-full h-full"
           role="img"
@@ -118,7 +170,7 @@ export function FloorPlan({ tables, showLegend = true }: {
               <path d="M40 0H0V40" fill="none" stroke="rgba(244,244,245,0.045)" strokeWidth="1" />
             </pattern>
           </defs>
-          <rect x={minX} y={minY} width={width} height={depth} fill="url(#floor-grid)" />
+          <rect x={boxX} y={boxY} width={boxW} height={boxH} fill="url(#floor-grid)" />
 
           {boxes.map(({ table }) => {
             const { w, h } = tileSizePx(table.shape, table.capacity);
@@ -170,6 +222,7 @@ export function FloorPlan({ tables, showLegend = true }: {
             </span>
           ))}
           <span className="ml-auto tabular-nums">
+            {active && !isTemplate ? `${active.name} · ` : ""}
             {room.length} tables · {seats} seats
             {isTemplate ? " (example)" : ""}
           </span>

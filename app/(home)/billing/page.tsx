@@ -124,7 +124,7 @@ export default function BillingPage() {
             const current = plan.key === sub.plan && interval === sub.interval;
             const price = interval === "year" ? plan.yearlyCents : plan.monthlyCents;
             return (
-              <Card key={plan.key} className={current ? "border-ai" : ""}>
+              <Card key={plan.key} className={`flex flex-col ${current ? "border-ai" : ""}`}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-lg font-semibold tracking-tight text-ink-50">{plan.name}</span>
                   {current ? <Chip tone="accent">current</Chip> : null}
@@ -148,7 +148,7 @@ export default function BillingPage() {
                     </li>
                   ))}
                 </ul>
-                <div className="mt-4">
+                <div className="mt-auto pt-4">
                   <Button
                     tone={current ? "ghost" : "primary"}
                     disabled={busy || current}
@@ -255,7 +255,7 @@ function BillingContact({ contact, busy, onSave }: {
         action={<Button tone="ghost" onClick={() => setOpen((value) => !value)}>{open ? "Close" : "Edit"}</Button>}
       />
       {!open ? (
-        <Card className="p-5 p-5">
+        <Card>
           {contact?.name || contact?.email ? (
             <p className="text-sm text-ink-200">
               {[contact?.name, contact?.email, contact?.line1, contact?.city, contact?.region, contact?.postal]
