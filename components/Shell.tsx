@@ -9,6 +9,13 @@
 //
 // The right-hand cluster mirrors the floor app's live strip: it answers
 // "what is the room doing right now" without leaving the page you are on.
+//
+// There is deliberately no launcher menu up here. A button labelled "Open"
+// beside a restaurant's name reads as a service-status control — as though
+// pressing it marks the room open for business — and no amount of menu
+// copy undoes that first impression. The links to the POS and the floor
+// manager live in a labelled panel on the overview instead, where they can
+// say what they are.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -24,10 +31,9 @@ const TABS = [
 ];
 
 export function Shell({
-  restaurantName, links, children,
+  restaurantName, children,
 }: {
   restaurantName: string;
-  links: { floor: string; pos: string };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -90,7 +96,6 @@ export function Shell({
           <span className="hidden md:inline text-sm text-ink-200 truncate max-w-[16ch]" title={restaurantName}>
             {restaurantName}
           </span>
-          <Launcher links={links} />
           <button
             type="button"
             onClick={signOut}
@@ -106,50 +111,3 @@ export function Shell({
   );
 }
 
-/** One control that opens the other two products. Given real prominence
- *  because "open the POS" is the commonest reason a manager lands here. */
-function Launcher({ links }: { links: { floor: string; pos: string } }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, [open]);
-
-  return (
-    <div className="relative" onClick={(event) => event.stopPropagation()}>
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-1.5 rounded-lg bg-ai-bg border border-ai/30 px-2.5 py-1.5 text-[11px] font-semibold text-ai hover:bg-ai-muted"
-        aria-expanded={open}
-      >
-        Open
-        <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
-          <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open ? (
-        <div className="absolute right-0 top-full mt-2 w-60 rounded-xl border border-border-hi bg-panel shadow-2xl overflow-hidden">
-          <LaunchItem href={links.floor} title="Floor manager" hint="Reservations, waitlist, sections" />
-          <LaunchItem href={links.pos} title="POS" hint="Orders, kitchen, checks" />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function LaunchItem({ href, title, hint }: { href: string; title: string; hint: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="block px-3 py-2.5 hover:bg-panel-up border-b border-border last:border-0"
-    >
-      <span className="block text-sm text-ink-50">{title} ↗</span>
-      <span className="block text-[11px] text-ink-400 mt-0.5">{hint}</span>
-    </a>
-  );
-}

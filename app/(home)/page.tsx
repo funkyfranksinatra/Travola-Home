@@ -63,6 +63,7 @@ export default function OverviewPage() {
   return (
     <div className="flex flex-col gap-6">
       <Hero data={data} />
+      <AppLinks data={data} />
       <Attention data={data} />
 
       {/* items-start: the plan is drawn at the room's own proportions, so
@@ -163,6 +164,83 @@ export default function OverviewPage() {
   );
 }
 
+/** The floor manager and the POS, stated plainly and immediately under the
+ *  restaurant's name.
+ *
+ *  This replaces a dropdown in the top bar labelled "Open". That control
+ *  tested badly for an obvious reason: next to a restaurant name, "Open" is
+ *  read as a state you are setting — open for service — not as a verb
+ *  acting on a hidden list. A manager who reads it that way either presses
+ *  it expecting to change something, or avoids pressing it in case they do.
+ *  Neither is recoverable with better menu copy, so the menu is gone and
+ *  the two destinations are named, described, and always visible instead.
+ *
+ *  These are the same two addresses for every restaurant — the sign-in
+ *  decides whose data is behind them — so there is nothing here to
+ *  configure and nothing that can be missing. */
+function AppLinks({ data }: { data: Overview }) {
+  const apps = [
+    {
+      key: "floor",
+      name: "Floor manager",
+      hint: "Reservations, waitlist, sections and the floor plan.",
+      href: data.links.floor,
+      tone: "text-ai",
+    },
+    {
+      key: "pos",
+      name: "POS",
+      hint: "Orders, the kitchen display, and checks.",
+      href: data.links.pos,
+      tone: "text-state-avail",
+    },
+  ].filter((app) => app.href);
+
+  if (!apps.length) return null;
+
+  return (
+    <section className="card p-5">
+      <div className="flex items-baseline justify-between gap-4">
+        <div>
+          <p className="label">Your other two apps</p>
+          <h2 className="text-lg font-semibold text-ink-50 mt-1 tracking-tight">
+            Open the floor manager or the POS
+          </h2>
+        </div>
+        <p className="hidden sm:block text-xs text-ink-400 text-right max-w-[34ch]">
+          Same restaurant name and code as this page. They open in a new tab.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {apps.map((app) => (
+          <a
+            key={app.key}
+            href={app.href}
+            target="_blank"
+            rel="noreferrer"
+            className="group flex items-center justify-between gap-4 rounded-xl border border-border bg-panel-up/40 px-4 py-4 hover:border-ai/40 hover:bg-panel-up transition-colors"
+          >
+            <span className="min-w-0">
+              <span className="block text-base font-semibold text-ink-50">{app.name}</span>
+              <span className="block text-sm text-ink-400 mt-0.5">{app.hint}</span>
+              <span className="block text-[11px] text-ink-400 opacity-70 mt-1.5 font-mono truncate">
+                {app.href.replace(/^https?:\/\//, "")}
+              </span>
+            </span>
+            <span
+              className={`${app.tone} shrink-0 text-xl leading-none group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform`}
+              aria-hidden="true"
+            >
+              &#8599;
+            </span>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Hero({ data }: { data: Overview }) {
   const covers = data.headline.metrics.find((m) => m.key === "covers");
   return (
@@ -194,13 +272,14 @@ function Hero({ data }: { data: Overview }) {
   );
 }
 
-/** The four things an owner most often opens this page to do. Placed in
- *  the column beside the room rather than hidden behind a menu, and it
- *  keeps that column from ending in dead space. */
+/** Shortcuts to the rest of Home. The other two products are NOT in here:
+ *  they get their own labelled panel under the page title, because burying
+ *  them in a list called "Jump to" is a milder version of the same mistake
+ *  the old "Open" menu made. */
 function QuickActions({ data }: { data: Overview }) {
   const actions = [
-    { label: "Open the POS", hint: "Orders, kitchen, checks", href: data.links.pos, external: true },
-    { label: "Open the floor manager", hint: "Reservations, waitlist, sections", href: data.links.floor, external: true },
+    { label: "Full analysis", hint: "Every shift on record", href: "/analysis", external: false },
+    { label: "The week ahead", hint: "Forecast covers by day", href: "/predictions", external: false },
     { label: "Export your data", hint: "One CSV per table", href: "/data", external: false },
     { label: "Manage logins", hint: "Staff PINs and codes", href: "/staff", external: false },
   ].filter((action) => action.href);
