@@ -87,19 +87,43 @@ export function Shell({
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-3 sm:gap-4 shrink-0">
-          <div className="hidden lg:block font-mono text-xs text-ink-400">
+        {/* One type system, not four. This strip had a 12px mono clock, a
+            14px sans restaurant name and a 9px uppercase tracked sign-out
+            sitting shoulder to shoulder — three families, three sizes,
+            three colours, and it read as sloppy because it was. Everything
+            here is now mono at 11px with leading-none so the baselines
+            line up, and the hierarchy is carried by weight and colour
+            alone: bright and semibold for the two things you look at (the
+            time, whose restaurant this is), muted for the two you only
+            glance at (the date, the way out). The hairline separates
+            *when* from *who*.
+
+            Mono is the right family for the whole group rather than a
+            compromise: the clock needs tabular figures so it does not jitter
+            every thirty seconds, and the restaurant name here is a readout
+            of which tenant you are signed into, not a headline. The left of
+            the bar stays uppercase sans for navigation, so the header reads
+            as two deliberate zones instead of a pile of styles. */}
+        <div className="ml-auto flex items-center gap-3 sm:gap-4 shrink-0 font-mono text-[11px] leading-none">
+          <p className="hidden lg:flex items-center gap-2">
             <span className="text-ink-50 font-semibold tabular-nums">{clock ?? "—:—"}</span>
-            <span className="mx-2 text-border-hi">·</span>
-            {today ?? ""}
-          </div>
-          <span className="hidden md:inline text-sm text-ink-200 truncate max-w-[16ch]" title={restaurantName}>
+            <span className="text-border-hi" aria-hidden="true">·</span>
+            <span className="text-ink-400">{today ?? ""}</span>
+          </p>
+
+          <span className="hidden lg:block w-px h-3.5 bg-border-hi" aria-hidden="true" />
+
+          <span
+            className="hidden md:inline font-semibold text-ink-50 truncate max-w-[18ch]"
+            title={restaurantName}
+          >
             {restaurantName}
           </span>
+
           <button
             type="button"
             onClick={signOut}
-            className="font-mono text-[9px] uppercase tracking-[.1em] text-ink-400 hover:text-ink-50"
+            className="text-ink-400 hover:text-ink-50 transition-colors"
           >
             Sign out
           </button>
