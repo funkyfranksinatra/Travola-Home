@@ -22,7 +22,12 @@ export type AuditAction =
   | "settings.updated"
   | "settings.renamed"
   | "data.export"
-  | "data.delete";
+  | "data.delete"
+  | "payouts.unlocked"
+  | "payouts.account_created"
+  | "payouts.dashboard_opened"
+  | "payouts.settings_updated"
+  | "payouts.disconnected";
 
 export async function audit(opts: {
   restaurantId: string;

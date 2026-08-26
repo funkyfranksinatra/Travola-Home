@@ -75,25 +75,26 @@ enum BookingSource {
 /// Console writes credentials: passcode rotation and the separate
 /// owner/admin passcode that gates destructive actions.
 model Restaurant {
-  id            String   @id @default(cuid())
-  name          String
-  nameKey       String   @unique
-  passcodeHash  String
-  recoveryEmail String?
+  id                String   @id @default(cuid())
+  name              String
+  nameKey           String   @unique
+  passcodeHash      String
+  recoveryEmail     String?
   /// Home-added. A SECOND credential, distinct from the 4-digit
   /// staff-facing passcode, required for irreversible acts (delete all
   /// data, rotate the restaurant passcode). Null until an owner sets
   /// one; while null Travola Home falls back to the restaurant passcode
   /// and nags the owner to set a real one.
   adminPasscodeHash String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  servers      Server[]
-  reservations Reservation[]
-  subscription Subscription?
-  invoices     Invoice[]
-  auditLogs    AuditLog[]
+  servers       Server[]
+  reservations  Reservation[]
+  subscription  Subscription?
+  invoices      Invoice[]
+  auditLogs     AuditLog[]
+  payoutAccount PayoutAccount?
 }
 
 // ─── Home-owned: subscription & billing ───────────────────────────
@@ -110,7 +111,7 @@ model Subscription {
 
   plan     String @default("standard") // starter | standard | pro
   status   String @default("trialing") // trialing | active | past_due | canceled | paused
-  interval String @default("month")    // month | year
+  interval String @default("month") // month | year
 
   priceCents Int    @default(0)
   currency   String @default("usd")
@@ -143,16 +144,16 @@ model Invoice {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
   number      String
-  status      String   @default("paid") // draft | open | paid | void | uncollectible
-  amountCents Int      @default(0)
-  taxCents    Int      @default(0)
-  totalCents  Int      @default(0)
-  currency    String   @default("usd")
+  status      String    @default("paid") // draft | open | paid | void | uncollectible
+  amountCents Int       @default(0)
+  taxCents    Int       @default(0)
+  totalCents  Int       @default(0)
+  currency    String    @default("usd")
   periodStart DateTime?
   periodEnd   DateTime?
-  issuedAt    DateTime @default(now())
+  issuedAt    DateTime  @default(now())
   paidAt      DateTime?
-  description String   @default("")
+  description String    @default("")
   hostedUrl   String?
   pdfUrl      String?
 
@@ -618,4 +619,97 @@ model Payment {
   createdAt             DateTime @default(now())
 
   @@index([restaurantId, createdAt])
+}
+
+// ─── Home-owned: Stripe Connect payouts ───────────────────────────
+
+/// Where a restaurant's card revenue lands.
+///
+/// Travola runs Stripe Connect **Express**: each restaurant gets its own
+/// Stripe account, completes Stripe's own KYC, and money moves from the
+/// guest's card to the restaurant's bank without Travola ever taking
+/// custody of it. That is a deliberate choice — a platform that touches
+/// restaurant revenue inherits money-transmission problems it does not
+/// want, and an owner is far more willing to enter an SSN on a Stripe
+/// page than on ours.
+///
+/// This row is a CACHE of what Stripe says plus the preferences the
+/// owner set here. It is written from the Connect API and from the
+/// account.updated webhook, and every screen renders from these columns
+/// rather than from a live API call — a settings page must not go blank
+/// because Stripe had a bad minute.
+model PayoutAccount {
+  id           String     @id @default(cuid())
+  restaurantId String     @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  /// "stub" until STRIPE_SECRET_KEY is set, then "stripe". Same shape as
+  /// Subscription.provider so both halves of Phase 1 switch on together.
+  provider        String  @default("stub")
+  /// The Connect account id (acct_...). Null before onboarding starts.
+  stripeAccountId String? @unique
+
+  /// not_started | onboarding | restricted | active | disabled
+  /// Derived from Stripe's flags on every sync, never set by hand.
+  status String @default("not_started")
+
+  /// Stripe's own three booleans, cached verbatim. `payoutsEnabled` is
+  /// the one that decides whether money actually moves; the other two
+  /// are what explains WHY when it does not.
+  detailsSubmitted Boolean @default(false)
+  chargesEnabled   Boolean @default(false)
+  payoutsEnabled   Boolean @default(false)
+
+  /// What Stripe is still waiting for, and when. Rendered as a checklist
+  /// so "restricted" is never a dead end the owner cannot act on.
+  requirementsDue   Json?
+  requirementsDueAt DateTime?
+  disabledReason    String?
+
+  /// The destination, as much of it as is safe to keep. Never the full
+  /// account number — Stripe holds that and we only ever show the tail.
+  bankName     String?
+  bankLast4    String?
+  bankCurrency String?
+  country      String?
+
+  // ── Owner preferences ──────────────────────────────────────────
+  /// daily | weekly | monthly | manual
+  payoutInterval      String @default("daily")
+  /// 0-6, Sunday=0. Only meaningful when payoutInterval is weekly.
+  payoutWeeklyAnchor  Int    @default(5)
+  /// 1-31. Only meaningful when payoutInterval is monthly. Stripe clamps
+  /// 29-31 to the last day of a short month; the UI says so.
+  payoutMonthlyAnchor Int    @default(1)
+  /// Days Stripe holds funds before sending them. "minimum" is stored as
+  /// null and means "whatever Stripe's floor is for this country".
+  payoutDelayDays     Int?
+
+  /// What the guest sees on their card statement. Stripe validates this
+  /// hard (5-22 chars, no < > \ ' " *), so we validate it here first and
+  /// say why rather than surfacing a raw API error.
+  statementDescriptor String?
+
+  /// Where Stripe sends "we sent your deposit" and "your payout failed".
+  /// Falls back to Restaurant.recoveryEmail when null.
+  payoutNotifyEmail String?
+
+  /// How this restaurant handles tips. Travola CANNOT move a tip to a
+  /// server's own bank account — tips land with the rest of the card
+  /// revenue and are distributed by the restaurant. This column records
+  /// what they intend so the POS and reports can say it out loud.
+  /// with_payout | cash_nightly | payroll
+  tipHandling String  @default("with_payout")
+  tipNote     String?
+
+  /// Last successful read from Stripe. Drives the "as of" line, and stops
+  /// a stale cache being presented as live truth.
+  lastSyncedAt  DateTime?
+  /// Last non-fatal sync failure, kept so a silently stale row is visible.
+  lastSyncError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }

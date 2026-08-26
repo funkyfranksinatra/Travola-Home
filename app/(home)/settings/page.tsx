@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, Chip, Empty, Field, PageHeader, SectionHeading, inputClass } from "@/components/ui";
 import { Delta } from "@/components/charts";
+import { Deposits } from "@/components/Deposits";
 import { integer } from "@/lib/format";
 
 type Settings = {
@@ -252,6 +253,12 @@ export default function SettingsPage() {
         />
       </section>
 
+      {/* Deposits sits above the app links and below the operating
+          settings: it is the only thing on this page that decides where
+          money goes, so it gets its own guarded block rather than a row
+          among service hours. */}
+      <Deposits />
+
       <Card className="p-5">
         <SectionHeading
           title="Your other two apps"
@@ -265,7 +272,7 @@ export default function SettingsPage() {
 
       <div className="no-print sticky bottom-4 flex justify-end">
         <div className="card p-3 flex items-center gap-3 shadow-2xl">
-          <span className="text-xs text-ink-400 px-1">Shared with the floor manager and the POS</span>
+          <span className="text-xs text-ink-400 px-1">Hours, days and service &mdash; shared with the floor manager and the POS</span>
           <Button tone="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save settings"}</Button>
         </div>
       </div>
