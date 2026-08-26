@@ -6,7 +6,7 @@
 // wording as the floor app and the POS. A manager who has signed into one
 // has signed into all three; making this screen look clever would only
 // make them wonder whether it wants something different.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Field, inputClass } from "@/components/ui";
 
 export default function LoginPage() {
@@ -18,6 +18,26 @@ export default function LoginPage() {
   // credential.
   const [isConfig, setIsConfig] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Ask up front whether this deployment is actually wired up, so a
+  // misconfiguration is on screen before anyone types a code and starts
+  // doubting a passcode that was never wrong. Also what a bounced page
+  // request lands on: the layout sends unusable sessions here.
+  useEffect(() => {
+    fetch("/api/health")
+      .then((response) => (response.ok ? null : response.json()))
+      .then((data) => {
+        const problems: Array<{ fix: string }> = data?.problems ?? [];
+        if (problems.length) {
+          setIsConfig(true);
+          setError(`This deployment is not fully configured. ${problems.map((p) => p.fix).join(" ")}`);
+        } else if (data && data.database && !data.database.ok) {
+          setIsConfig(true);
+          setError(`The Console cannot reach the database: ${data.database.detail}`);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();

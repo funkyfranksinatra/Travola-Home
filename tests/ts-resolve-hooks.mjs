@@ -24,5 +24,15 @@ export async function resolve(specifier, context, nextResolve) {
       }
     }
   }
-  return nextResolve(spec, context);
+  try {
+    return await nextResolve(spec, context);
+  } catch (error) {
+    // Bare package subpaths that Next publishes with an extension
+    // ("next/server" -> "next/server.js"). The bundler resolves these;
+    // Node's ESM loader does not.
+    if (!spec.startsWith(".") && !spec.startsWith("file:") && !spec.endsWith(".js")) {
+      return nextResolve(`${spec}.js`, context);
+    }
+    throw error;
+  }
 }
