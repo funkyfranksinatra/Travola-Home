@@ -74,7 +74,7 @@ test("a forged cookie gets past the redirect, which is fine and intended", async
 test("the matcher covers the signed-in pages and nothing that must stay reachable", async () => {
   const { config } = await import("../proxy.ts");
   const matcher: string[] = config.matcher;
-  for (const page of ["/", "/analysis", "/predictions", "/staff", "/billing", "/data"]) {
+  for (const page of ["/", "/analysis", "/predictions", "/staff", "/billing", "/data", "/settings"]) {
     assert.ok(matcher.includes(page), `${page} must require a session`);
   }
   // /login must stay reachable while signed out, and the API routes

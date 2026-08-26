@@ -9,7 +9,7 @@
 // foreign key or quietly change the numbers on the analysis tab. Revoking
 // access is what "delete this ex-employee" actually means.
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Chip, Empty, Field, SectionHeading, inputClass } from "@/components/ui";
+import { Avatar, Button, Card, Chip, Empty, Field, PageHeader, SectionHeading, inputClass } from "@/components/ui";
 import { dateLabel } from "@/lib/format";
 
 type Staff = {
@@ -66,17 +66,19 @@ export default function StaffPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="tv-label">Logins</p>
-        <h1 className="tv-heading text-ink-50 mt-1" style={{ fontSize: "calc(var(--heading-size) * 1.3)" }}>
-          Access & credentials
-        </h1>
-        <p className="text-sm text-ink-400 mt-1">
-          Staff sign in to the POS with a four-digit PIN. The restaurant code opens all three apps.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Logins"
+        title="Access & credentials"
+        note="Staff sign in to the POS with a four-digit PIN. The restaurant code opens all three apps."
+        right={
+          <div className="flex gap-2 flex-wrap">
+            <Chip tone="good">{active.length} with access</Chip>
+            {inactive.length ? <Chip>{inactive.length} revoked</Chip> : null}
+          </div>
+        }
+      />
 
-      {error ? <Card className="border-l-2 border-l-state-seated"><p className="text-sm text-state-seated">{error}</p></Card> : null}
+      {error ? <Card className="p-5 border-l-2 border-l-state-seated"><p className="text-sm text-state-seated">{error}</p></Card> : null}
       {notice ? <p className="text-sm text-state-avail">{notice}</p> : null}
 
       <Credentials adminSet={data.adminPasscodeSet} restaurantName={data.restaurant.name} onSaved={load} />
@@ -127,8 +129,10 @@ function StaffRow({ person, onAct }: { person: Staff; onAct: (id: string, action
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <Card className="flex items-center justify-between gap-4 flex-wrap">
-      <div className="min-w-0">
+    <Card className="p-5 flex items-center justify-between gap-4 flex-wrap">
+      <div className="min-w-0 flex items-center gap-3">
+        <Avatar name={person.name} dimmed={!person.active} />
+        <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-ink-50">{person.name}</span>
           {person.roles.map((role) => <Chip key={role}>{role}</Chip>)}
@@ -139,9 +143,10 @@ function StaffRow({ person, onAct }: { person: Staff; onAct: (id: string, action
         <p className="text-xs text-ink-400 mt-1">
           {person.lastServiceDate ? `Last worked ${dateLabel(person.lastServiceDate)}` : "No recorded shifts"}
         </p>
+        </div>
       </div>
 
-      <div className="tv-no-print flex items-center gap-2 flex-wrap">
+      <div className="no-print flex items-center gap-2 flex-wrap">
         {editing ? (
           <>
             <input
@@ -224,7 +229,7 @@ function Credentials({ adminSet, restaurantName, onSaved }: {
 
   return (
     <section className="grid gap-4 lg:grid-cols-2">
-      <Card>
+      <Card className="p-5 p-5">
         <SectionHeading title="Restaurant code" note={`Opens the floor manager, the POS and this Console for ${restaurantName}.`} />
         <p className="text-sm text-ink-400">
           Change it and everyone will need the new four digits. Managers who have a device signed in stay signed in
@@ -258,7 +263,7 @@ function Credentials({ adminSet, restaurantName, onSaved }: {
       {done ? <p className="lg:col-span-2 text-sm text-state-avail">{done}</p> : null}
 
       {mode ? (
-        <form onSubmit={submit} className="tv-card lg:col-span-2 space-y-3">
+        <form onSubmit={submit} className="card p-5 lg:col-span-2 space-y-3">
           <SectionHeading
             title={mode === "rotate_passcode" ? "Change the restaurant code" : "Set the owner code"}
           />

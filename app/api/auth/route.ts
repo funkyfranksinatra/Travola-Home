@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { allowAttempt, restaurantByCredentials, verifyAdminPasscode } from "@/lib/restaurant-auth";
 import { clearSession, getRestaurantId, setSession } from "@/lib/session";
 import { audit } from "@/lib/audit";
-import { configMessage, operationalError } from "@/lib/env";
+import { configMessage, isConfigurationFailure, operationalError } from "@/lib/env";
 
 export async function POST(request: Request) {
   if (!allowAttempt(request, "console-login")) {
@@ -39,7 +39,11 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("[auth] sign-in failed:", error);
-    return NextResponse.json({ error: operationalError(error), configuration: true }, { status: 503 });
+    const configuration = isConfigurationFailure(error);
+    return NextResponse.json(
+      { error: operationalError(error), ...(configuration ? { configuration } : {}) },
+      { status: configuration ? 503 : 500 },
+    );
   }
 }
 

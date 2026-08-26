@@ -8,7 +8,7 @@
 // code, the code again in the request, the restaurant name typed exactly,
 // and an explicit scope) and none of them is a substitute for the others.
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Chip, Empty, Field, SectionHeading, inputClass } from "@/components/ui";
+import { Button, Card, Chip, Empty, Field, PageHeader, SectionHeading, inputClass } from "@/components/ui";
 import { integer } from "@/lib/format";
 
 type Manifest = { tables: Array<{ key: string; label: string; rows: number }>; generatedAt: string };
@@ -34,15 +34,18 @@ export default function DataPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="tv-label">Data</p>
-        <h1 className="tv-heading text-ink-50 mt-1" style={{ fontSize: "calc(var(--heading-size) * 1.3)" }}>
-          Export & deletion
-        </h1>
-        <p className="text-sm text-ink-400 mt-1">
-          Your records, as stored — not a summary. Every export is written to the audit log.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Data"
+        title="Export & deletion"
+        note="Your records, as stored — not a summary. Every export is written to the audit log."
+        right={
+          manifest ? (
+            <Chip tone="accent">
+              {integer(manifest.tables.reduce((sum, table) => sum + table.rows, 0))} rows on record
+            </Chip>
+          ) : null
+        }
+      />
 
       {error ? <Empty>{error}</Empty> : null}
 
@@ -61,7 +64,7 @@ export default function DataPage() {
               <a
                 key={table.key}
                 href={`/api/export?table=${table.key}`}
-                className="tv-card flex items-center justify-between gap-3 hover:border-border-hi"
+                className="card p-5 flex items-center justify-between gap-3 hover:border-border-hi"
               >
                 <span>
                   <span className="block text-sm text-ink-50">{table.label}</span>
@@ -147,12 +150,12 @@ function DangerZone({ onDone }: { onDone: () => void }) {
       />
 
       {result ? (
-        <Card className="border-l-2 border-l-state-avail">
+        <Card className="p-5 border-l-2 border-l-state-avail">
           <p className="text-sm text-ink-50">{result}</p>
         </Card>
       ) : null}
 
-      <Card className="border-l-2 border-l-state-seated space-y-4">
+      <Card className="p-5 border-l-2 border-l-state-seated space-y-4">
         {!unlocked ? (
           <>
             <p className="text-sm text-ink-200">

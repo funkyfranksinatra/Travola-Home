@@ -105,7 +105,7 @@ export async function buildAnalysis(opts: {
     rollup, priorRollup, moneyDays, priorMoneyDays,
     monthlyCovers, monthlyRevenue, hourly, dow, partySize,
     itemMix, neverSold, servers, waitlist, priorWaitlist,
-    guests, pace, forecast,
+    guests, pace, forecast, dailyCovers, weekHeat,
   ] = await Promise.all([
     q.loadShiftRollup(opts.restaurantId, range.from, range.to),
     q.loadShiftRollup(opts.restaurantId, priorFrom, priorTo),
@@ -124,6 +124,8 @@ export async function buildAnalysis(opts: {
     q.loadGuestRetention(opts.restaurantId, range.from, range.to),
     q.loadPace(opts.restaurantId, range.from, range.to),
     q.loadForecastAccuracy(opts.restaurantId, range.from, range.to),
+    q.loadDailyCovers(opts.restaurantId, range.from, range.to),
+    q.loadWeekHeatmap(opts.restaurantId, range.from, range.to),
   ]);
 
   // ── Shift table ────────────────────────────────────────────────────
@@ -429,7 +431,25 @@ export async function buildAnalysis(opts: {
         value: Math.round(num(row.avg_turn) as number),
         sample: count(row.parties),
       })),
+    dailyCovers: dailyCovers.map((row) => ({
+      key: dateKeyOf(row.d),
+      label: dateKeyOf(row.d),
+      value: count(row.covers),
+      sample: count(row.parties),
+    })),
+    weekHeatmap: weekHeat.map((row) => ({ dow: row.dow, hour: row.hour, covers: count(row.covers) })),
+    // The prior-year series is built below, once the month keys are known.
+    monthlyCoversPriorYear: [] as SeriesPoint[],
   };
+
+  // Year-over-year on ONE axis: the same measure, shifted twelve months,
+  // so the two lines share a scale. Two y-axes would be a lie.
+  const coverByMonth = new Map(monthlyCoverPoints.map((p) => [p.key, p.value]));
+  series.monthlyCoversPriorYear = monthlyCoverPoints.map((point) => ({
+    key: point.key,
+    label: point.label,
+    value: coverByMonth.get(priorYearMonth(point.key)) ?? null,
+  }));
 
   // ── Growth ─────────────────────────────────────────────────────────
   const growth = buildGrowth(monthlyCoverPoints, monthlyRevenuePoints, now);

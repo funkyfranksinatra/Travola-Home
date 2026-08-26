@@ -19,6 +19,8 @@ export type AuditAction =
   | "plan.cancel"
   | "plan.resume"
   | "billing.contact_updated"
+  | "settings.updated"
+  | "settings.renamed"
   | "data.export"
   | "data.delete";
 

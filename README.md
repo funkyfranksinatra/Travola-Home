@@ -22,6 +22,8 @@ A restaurant signs in to all three with the **same name and four-digit code**.
 - **Logins** — staff PINs, the restaurant code, and a separate owner code that gates anything irreversible.
 - **Plan & billing** — plan changes, invoices, billing details, cancellation.
 - **Data** — CSV export of every table, and gated deletion.
+- **Settings** — service hours, days open, timezone, turn time and the other
+  facts that are the denominators behind the analysis tab.
 
 ---
 
@@ -70,13 +72,25 @@ zero.
 
 ---
 
-## Choosing the design
+## Design
 
-Three complete visual treatments ship in the build: **Ledger** (dense, ruled),
-**Brief** (editorial, airy) and **Console** (operator, matches the POS). Switch
-between them from **Appearance** in the sidebar. They share one palette — the
-floor app's exact colour values — and differ only in CSS custom properties.
+Top tabs, matching the floor manager's 56px bar, brand lockup and uppercase tab
+treatment — a manager moving between the two products should not have to
+relearn where anything is.
 
-Once one is chosen, deleting the other two is: remove their `[data-style="…"]`
-blocks from `app/globals.css`, trim `STYLES` in `lib/style.ts`, and drop the
-switcher from `components/Shell.tsx`.
+Two colour layers, deliberately different:
+
+- **Chrome** (surfaces, type, borders) uses the floor app's calm values
+  unchanged. A page someone stares at for an hour should not shout.
+- **Data marks** use their own set, because chart marks have a job the chrome
+  does not: they must stay separable from each other on a dark surface, for
+  colour-blind readers too. The chrome indigo sits above the dark-mode
+  lightness band for a mark, so the series colours are stepped versions of the
+  same hues, checked with a palette validator rather than by eye — worst
+  adjacent pair ΔE 10.1 (deutan) / 23.7 (normal vision), all ≥ 3:1 on the card
+  surface.
+
+Green and red are **reserved for direction** and always ship with an arrow and a
+number, so a rise or a fall is never carried by colour alone.
+
+See [`docs/DESIGN.md`](docs/DESIGN.md).

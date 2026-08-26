@@ -67,7 +67,7 @@ test("dates render in UTC so a service day never slips by one", () => {
 // Regression cover for the deployment that answered "That did not work."
 // on the sign-in screen when the real problem was an unset DATABASE_URL,
 // sending the user to check a password that was never wrong.
-import { configProblems, configMessage, operationalError } from "../lib/env.ts";
+import { configProblems, configMessage, isConfigurationFailure, operationalError } from "../lib/env.ts";
 
 function withEnv(vars: Record<string, string | undefined>, run: () => void) {
   const saved: Record<string, string | undefined> = {};
@@ -121,10 +121,19 @@ test("both missing variables are named, not just the first", () => {
   });
 });
 
-test("Prisma's unreachable-database error points at the env var, not the database", () => {
-  const error = Object.assign(new Error("Can't reach database server at 127.0.0.1:5432"), { code: "P1001" });
-  assert.match(operationalError(error), /DATABASE_URL/);
-  assert.match(operationalError(new Error("DriverAdapterError: DatabaseNotReachable")), /DATABASE_URL/);
+test("an unreachable database blames the env var only when it is missing", () => {
+  const unreachable = Object.assign(new Error("Can't reach database server at 127.0.0.1:5432"), { code: "P1001" });
+  withEnv({ DATABASE_URL: undefined }, () => {
+    assert.match(operationalError(unreachable), /DATABASE_URL/);
+    assert.match(operationalError(new Error("DriverAdapterError: DatabaseNotReachable")), /DATABASE_URL/);
+  });
+  // Telling someone who configured it twenty minutes ago to go and set it
+  // sends them to check the one thing that is fine.
+  withEnv({ DATABASE_URL: "postgresql://u:p@ep-x.neon.tech/neondb" }, () => {
+    const message = operationalError(unreachable);
+    assert.doesNotMatch(message, /is not set/);
+    assert.match(message, /configured/);
+  });
   assert.match(
     operationalError(new Error("SESSION_SECRET is required to use restaurant sessions.")),
     /SESSION_SECRET/,
@@ -149,4 +158,18 @@ test("a local development database is not mistaken for the placeholder", () => {
   withEnv({ DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder", SESSION_SECRET: "x" }, () => {
     assert.equal(configProblems().length, 1, "but the build placeholder is still caught");
   });
+});
+
+test("only a fixable setup problem is labelled a configuration failure", () => {
+  const unreachable = Object.assign(new Error("Can't reach database server"), { code: "P1001" });
+  withEnv({ DATABASE_URL: undefined }, () => {
+    assert.equal(isConfigurationFailure(unreachable), true, "no URL set — the operator can fix this");
+  });
+  withEnv({ DATABASE_URL: "postgresql://u:p@ep-x.neon.tech/neondb" }, () => {
+    assert.equal(isConfigurationFailure(unreachable), false, "URL is set — this is an outage, not a setting");
+  });
+  assert.equal(isConfigurationFailure(new Error("SESSION_SECRET is required")), true);
+  // An ordinary bug must not send the user off to check settings that are
+  // perfectly fine.
+  assert.equal(isConfigurationFailure(new Error("Cannot read properties of undefined")), false);
 });

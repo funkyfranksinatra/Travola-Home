@@ -8,7 +8,7 @@
 // has paid through the month keeps its floor plan through the month. An
 // owner who trusts they can leave is an owner who stays.
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, Chip, Empty, Field, SectionHeading, inputClass } from "@/components/ui";
+import { Button, Card, Chip, Empty, Field, PageHeader, SectionHeading, inputClass } from "@/components/ui";
 import { dateLabel, money } from "@/lib/format";
 import type { InvoiceView, Plan, SubscriptionView } from "@/lib/billing";
 
@@ -61,21 +61,26 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="tv-label">Plan & billing</p>
-        <h1 className="tv-heading text-ink-50 mt-1" style={{ fontSize: "calc(var(--heading-size) * 1.3)" }}>
-          {sub.planName}
-        </h1>
-        <p className="text-sm text-ink-400 mt-1">
-          {money(sub.priceCents)} per {sub.interval}
-          {sub.currentPeriodEnd ? ` · current period ends ${dateLabel(sub.currentPeriodEnd.slice(0, 10))}` : ""}
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Plan & billing"
+        title={sub.planName}
+        note={`${money(sub.priceCents)} per ${sub.interval}${
+          sub.currentPeriodEnd ? ` · current period ends ${dateLabel(sub.currentPeriodEnd.slice(0, 10))}` : ""
+        }`}
+        right={
+          <div className="flex gap-2 flex-wrap">
+            <Chip tone={sub.status === "active" || sub.status === "trialing" ? "good" : sub.status === "past_due" ? "bad" : "neutral"}>
+              {sub.status === "trialing" ? "trial" : sub.status.replace("_", " ")}
+            </Chip>
+            {sub.cancelAtPeriodEnd ? <Chip tone="warn">cancels at period end</Chip> : null}
+          </div>
+        }
+      />
 
       {error ? <p className="text-sm text-state-seated">{error}</p> : null}
 
       {sub.simulated ? (
-        <Card className="border-l-2 border-l-ai">
+        <Card className="p-5 border-l-2 border-l-ai">
           <p className="text-sm text-ink-200">
             No payment processor is connected, so nothing is charged and no card is stored. Everything on this page is
             real and recorded — plan changes, cancellations, invoices — it just does not move money yet. Connecting a
@@ -85,7 +90,7 @@ export default function BillingPage() {
       ) : null}
 
       {sub.cancelAtPeriodEnd ? (
-        <Card className="border-l-2 border-l-state-dining">
+        <Card className="p-5 border-l-2 border-l-state-dining">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <p className="text-sm text-ink-50">
@@ -121,11 +126,11 @@ export default function BillingPage() {
             return (
               <Card key={plan.key} className={current ? "border-ai" : ""}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="tv-heading text-ink-50">{plan.name}</span>
+                  <span className="text-lg font-semibold tracking-tight text-ink-50">{plan.name}</span>
                   {current ? <Chip tone="accent">current</Chip> : null}
                 </div>
                 <p className="text-sm text-ink-400 mt-1">{plan.blurb}</p>
-                <p className="tv-metric text-ink-50 mt-3">
+                <p className="figure-sm text-ink-50 mt-3">
                   {money(price)}
                   <span className="text-sm text-ink-400 font-normal"> /{interval}</span>
                 </p>
@@ -166,8 +171,8 @@ export default function BillingPage() {
         {data.invoices.length === 0 ? (
           <Empty>No invoices have been issued yet.</Empty>
         ) : (
-          <div className="tv-card tv-panel overflow-x-auto p-0">
-            <table className="tv-table w-full text-sm min-w-[560px]">
+          <div className="card overflow-x-auto">
+            <table className="data-table text-sm min-w-[560px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="pl-3">Issued</th>
@@ -201,7 +206,7 @@ export default function BillingPage() {
         <section>
           <SectionHeading title="Cancel" />
           {cancelling ? (
-            <Card className="space-y-3">
+            <Card className="p-5 space-y-3">
               <p className="text-sm text-ink-200">
                 Your subscription will run to the end of the current period
                 {sub.currentPeriodEnd ? ` (${dateLabel(sub.currentPeriodEnd.slice(0, 10))})` : ""} and then stop. The
@@ -250,7 +255,7 @@ function BillingContact({ contact, busy, onSave }: {
         action={<Button tone="ghost" onClick={() => setOpen((value) => !value)}>{open ? "Close" : "Edit"}</Button>}
       />
       {!open ? (
-        <Card>
+        <Card className="p-5 p-5">
           {contact?.name || contact?.email ? (
             <p className="text-sm text-ink-200">
               {[contact?.name, contact?.email, contact?.line1, contact?.city, contact?.region, contact?.postal]
@@ -262,7 +267,7 @@ function BillingContact({ contact, busy, onSave }: {
           )}
         </Card>
       ) : (
-        <Card className="grid gap-3 sm:grid-cols-2">
+        <Card className="p-5 grid gap-3 sm:grid-cols-2">
           <Field label="Billing name"><input className={inputClass} value={form.name} onChange={set("name")} /></Field>
           <Field label="Email"><input className={inputClass} value={form.email} onChange={set("email")} type="email" /></Field>
           <Field label="Phone"><input className={inputClass} value={form.phone} onChange={set("phone")} /></Field>

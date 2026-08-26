@@ -121,10 +121,16 @@ export type AnalysisResult = {
   series: {
     monthlyCovers: SeriesPoint[];
     monthlyRevenue: SeriesPoint[];
+    /** Same months as monthlyCovers, shifted a year — the year-over-year
+     *  comparison series, aligned so one axis serves both. */
+    monthlyCoversPriorYear: SeriesPoint[];
     dayOfWeek: SeriesPoint[];
     hourly: SeriesPoint[];
     partySize: SeriesPoint[];
     turnByPartySize: SeriesPoint[];
+    dailyCovers: SeriesPoint[];
+    /** "<dayOfWeek>-<hour>" -> covers. */
+    weekHeatmap: Array<{ dow: number; hour: number; covers: number }>;
   };
   growth: {
     coversMoM: number | null;

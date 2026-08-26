@@ -67,11 +67,27 @@ export function configMessage(): string | null {
  * an unset environment variable sends the user off to check a password
  * that was never wrong.
  */
+/** Is this failure something the operator can fix by setting a variable? */
+export function isConfigurationFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/SESSION_SECRET|DATABASE_URL/i.test(message)) return true;
+  const code = (error as { code?: string })?.code;
+  const unreachable = code === "P1001" || /reach database server|DatabaseNotReachable/i.test(message);
+  // An unreachable database with the URL set is an outage, not a setting.
+  return unreachable && !process.env.DATABASE_URL;
+}
+
 export function operationalError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const code = (error as { code?: string })?.code;
   if (code === "P1001" || /reach database server|DatabaseNotReachable/i.test(message)) {
-    return "The Console cannot reach the database. If this deployment is new, DATABASE_URL is probably not set on it yet — it needs the same Neon connection string as the floor manager and the POS.";
+    // Only blame the environment variable when it is actually absent.
+    // Saying "DATABASE_URL is probably not set" to someone who set it
+    // twenty minutes ago sends them to check the one thing that is fine,
+    // when the real answer is that the database itself is unreachable.
+    return process.env.DATABASE_URL
+      ? "The Console cannot reach the database right now. The connection string is configured, so this is the database being unreachable rather than a missing setting — it usually clears on its own."
+      : "The Console cannot reach the database because DATABASE_URL is not set on this deployment. It needs the same Neon connection string as the floor manager and the POS.";
   }
   if (/SESSION_SECRET/i.test(message)) {
     return "The Console has no SESSION_SECRET configured, so it cannot sign anyone in. Set it to the same value the floor manager and the POS use.";

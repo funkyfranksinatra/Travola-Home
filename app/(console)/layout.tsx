@@ -9,7 +9,6 @@ import { Shell } from "@/components/Shell";
 import { prisma } from "@/lib/prisma";
 import { configProblems } from "@/lib/env";
 import { CONSOLE_SESSION_COOKIE, restaurantIdFromCookieValue } from "@/lib/session";
-import { resolveStyle, STYLE_COOKIE } from "@/lib/style";
 
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
@@ -43,7 +42,6 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   return (
     <Shell
       restaurantName={restaurant.name}
-      style={resolveStyle(jar.get(STYLE_COOKIE)?.value)}
       links={{
         floor: process.env.NEXT_PUBLIC_FLOOR_URL ?? "",
         pos: process.env.NEXT_PUBLIC_POS_URL ?? "",

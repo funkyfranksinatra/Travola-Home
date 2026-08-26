@@ -5,6 +5,7 @@
 // like, and the headline of the next AI forecast.
 import { prisma } from "@/lib/prisma";
 import { withTenant } from "@/lib/tenant";
+import { buildAnalysis } from "@/lib/analytics/analysis";
 import { billing } from "@/lib/billing";
 import { hasAdminPasscode } from "@/lib/restaurant-auth";
 import { adminWindowRemaining } from "@/lib/session";
@@ -19,7 +20,7 @@ function todayKey() {
 export async function GET(request: Request) {
   return withTenant(request, async (restaurantId) => {
     const today = todayKey();
-    const [restaurant, subscription, invoices, staffCount, tableCount, openChecks, forecast, lastService, adminSet] =
+    const [restaurant, subscription, invoices, staffCount, tables, openChecks, forecast, lastService, adminSet, analysis] =
       await Promise.all([
         prisma.restaurant.findUnique({
           where: { id: restaurantId },
@@ -28,7 +29,13 @@ export async function GET(request: Request) {
         billing().getSubscription(restaurantId),
         billing().listInvoices(restaurantId, 3),
         prisma.server.count({ where: { restaurantId, active: true } }),
-        prisma.table.count({ where: { restaurantId, active: true } }),
+        // The room itself, for the floor plan. Ordered so the drawing is
+        // stable between renders rather than following insertion order.
+        prisma.table.findMany({
+          where: { restaurantId, active: true },
+          orderBy: [{ floorId: "asc" }, { y: "asc" }, { x: "asc" }],
+          select: { id: true, name: true, capacity: true, shape: true, area: true, x: true, y: true, rotation: true, floorId: true },
+        }),
         prisma.check.count({ where: { restaurantId, status: "open" } }),
         prisma.shiftForecast.findFirst({
           where: { restaurantId, date: { gte: today } },
@@ -40,6 +47,9 @@ export async function GET(request: Request) {
           select: { serviceDate: true },
         }),
         hasAdminPasscode(restaurantId),
+        // One grouped-SQL pass gives the overview its headline figures and
+        // their sparklines, rather than four more round trips.
+        buildAnalysis({ restaurantId, range: "30d" }),
       ]);
 
     const cookie = request.headers
@@ -62,9 +72,21 @@ export async function GET(request: Request) {
       recentInvoices: invoices,
       floor: {
         staffCount,
-        tableCount,
+        tableCount: tables.length,
+        seatCount: tables.reduce((sum, table) => sum + (table.capacity || 0), 0),
+        floorCount: new Set(tables.map((table) => table.floorId)).size,
         openChecks,
         lastServiceDate: lastService?.serviceDate?.toISOString().slice(0, 10) ?? null,
+      },
+      tables: tables.map(({ floorId: _floorId, ...table }) => table),
+      headline: {
+        rangeLabel: analysis.range.label,
+        metrics: analysis.metrics.filter((metric) =>
+          ["covers", "avg_check", "turn_time", "no_show_rate", "avg_party", "revenue"].includes(metric.key),
+        ),
+        dailyCovers: analysis.series.dailyCovers,
+        gaps: analysis.coverage.gaps,
+        coverage: analysis.coverage,
       },
       nextForecast: forecast
         ? {

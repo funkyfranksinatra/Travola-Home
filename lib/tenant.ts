@@ -6,7 +6,7 @@
 // convenience and is IGNORED in production, where an env-var tenant would
 // be a cross-restaurant data leak waiting to happen.
 import { getRestaurantId } from "./session";
-import { configMessage, operationalError } from "./env";
+import { configMessage, isConfigurationFailure, operationalError } from "./env";
 
 export function currentRestaurantId(req: Request) {
   const fromSession = getRestaurantId(req);
@@ -45,6 +45,13 @@ export async function withTenant(
   } catch (error) {
     if (error instanceof Response) return error;
     console.error("[console]", error);
-    return Response.json({ error: operationalError(error), configuration: true }, { status: 503 });
+    // `configuration: true` tells the UI "this is a setup problem, do not
+    // retype your code". Claiming it for an ordinary bug would send the
+    // user off to check settings that are perfectly fine.
+    const configuration = isConfigurationFailure(error);
+    return Response.json(
+      { error: operationalError(error), ...(configuration ? { configuration } : {}) },
+      { status: configuration ? 503 : 500 },
+    );
   }
 }
