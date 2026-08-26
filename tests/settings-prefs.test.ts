@@ -1,7 +1,7 @@
 // tests/settings-prefs.test.ts — the shared preferences blob.
 //
 // `RestaurantSettings.prefs` is ONE json column belonging to three apps.
-// A whole-object write from the Console would silently reset the floor
+// A whole-object write from Travola Home would silently reset the floor
 // manager's tour state, auto-assign flag and alert settings — a bug
 // nobody would connect to having changed the turn time on another screen.
 import { strict as assert } from "node:assert";
@@ -24,7 +24,7 @@ const FLOOR_APP_PREFS = {
   confirmSeating: false,
 };
 
-test("editing one field leaves every key the Console does not own untouched", () => {
+test("editing one field leaves every key Travola Home does not own untouched", () => {
   const merged = mergePrefs(FLOOR_APP_PREFS, { turnMinutes: 105 });
   assert.equal(merged.turnTime, "105");
   assert.deepEqual(merged.tours, FLOOR_APP_PREFS.tours, "the floor app's tour state must survive");

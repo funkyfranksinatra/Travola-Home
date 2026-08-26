@@ -1,6 +1,6 @@
 // app/api/predictions/route.ts — the AI's week ahead, read-only.
 //
-// The Console does NOT generate forecasts; Travola-OS owns that job and
+// Travola Home does NOT generate forecasts; Travola-OS owns that job and
 // its research budget. This reads the published cache so an owner can see
 // the week without opening the floor app — and scores the days already
 // past against what actually happened, which is the part that earns trust

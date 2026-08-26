@@ -1,6 +1,6 @@
 "use client";
 
-// app/(console)/data/page.tsx — export it, or destroy it.
+// app/(home)/data/page.tsx — export it, or destroy it.
 //
 // The two halves are on one page on purpose: an owner who is about to
 // delete everything should be looking straight at the export button while

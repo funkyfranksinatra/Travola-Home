@@ -1,4 +1,4 @@
-# Travola Console
+# Travola Home
 
 The simple page in front of the two complicated ones.
 
@@ -8,13 +8,13 @@ Travola is three products against **one Postgres database**:
 |---|---|---|
 | Travola-OS | `mesaos-web` | The floor manager — layout, reservations, waitlist, shift intelligence |
 | Travola POS | `Travola-POS` | Orders, kitchen display, checks, menu |
-| **Travola Console** | **this repo** | Plan, analyse, and administer the account |
+| **Travola Home** | **this repo** | Plan, analyse, and administer the account |
 
 A restaurant signs in to all three with the **same name and four-digit code**.
 
 ---
 
-## What the Console does
+## What Travola Home does
 
 - **Overview** — what needs attention, tonight's numbers, and one-click launch into the floor manager or the POS.
 - **Analysis** — every shift on record, back to the earliest imported reservation. Covers, turn time, party size, no-shows, walk-in share, average bill, per-person average, revenue per seat hour, most and least sold items, month-over-month and year-over-year growth. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for the full metric list and how each one degrades when its source is missing.
@@ -53,7 +53,7 @@ Travola-OS owns **every** migration for the shared database. This repo runs
 would try to reconcile the whole database to this partial mirror and **drop the
 floor app's tables**.
 
-The tables the Console introduced — `Subscription`, `Invoice`, `AuditLog`,
+The tables Travola Home introduced — `Subscription`, `Invoice`, `AuditLog`,
 `DataExport`, and `Restaurant.adminPasscodeHash` — ship as
 `20260826180000_console_account` in the Travola-OS repo.
 

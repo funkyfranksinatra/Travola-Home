@@ -1,24 +1,25 @@
-// lib/session.ts — restaurant session for the Travola Console.
+// lib/session.ts — restaurant session for the Travola Home.
 //
 // Deliberately IDENTICAL in scheme to the floor app's and the POS's
 // lib/session.ts: an HMAC-signed cookie carrying the restaurant id,
 // verified with the shared SESSION_SECRET. One restaurant credential
 // (name + 4-digit passcode) signs a manager into all three products.
 //
-// The cookie NAME differs (travola_console_session) so a shared device
-// can hold a floor session, a POS session and a Console session at once,
+// The cookie NAME differs (travola_home_session) so a shared device
+// can hold a floor session, a POS session and a Travola Home session at
+// once,
 // and signing out of one never signs the others out. The signature is
 // interchangeable, so putting all three apps on travola.app subdomains
 // later and sharing ONE cookie across them is a rename, not a rewrite.
 //
-// The Console additionally carries an `adm` claim: the timestamp at
+// Travola Home additionally carries an `adm` claim: the timestamp at
 // which the owner last proved the admin passcode. Destructive routes
 // require it to be recent (see ADMIN_WINDOW_MS) — a re-auth window, so
 // a tablet left unlocked on the pass cannot delete a restaurant.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
-const SESSION_COOKIE = "travola_console_session";
+const SESSION_COOKIE = "travola_home_session";
 const encoder = new TextEncoder();
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
@@ -116,4 +117,4 @@ export function clearSession(response: NextResponse) {
   return response;
 }
 
-export const CONSOLE_SESSION_COOKIE = SESSION_COOKIE;
+export const HOME_SESSION_COOKIE = SESSION_COOKIE;

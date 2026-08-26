@@ -1,16 +1,16 @@
-// app/(console)/layout.tsx — the signed-in frame.
+// app/(home)/layout.tsx — the signed-in frame.
 //
 // Server component: it resolves the tenant and the chosen style once, on
 // the server, so the nav renders with the restaurant's name in the first
-// paint rather than flashing "Console" and then correcting itself.
+// paint rather than flashing "Home" and then correcting itself.
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { prisma } from "@/lib/prisma";
 import { configProblems } from "@/lib/env";
-import { CONSOLE_SESSION_COOKIE, restaurantIdFromCookieValue } from "@/lib/session";
+import { HOME_SESSION_COOKIE, restaurantIdFromCookieValue } from "@/lib/session";
 
-export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
+export default async function HomeLayout({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
 
   // This layout is the real gate for a page request — the proxy only
@@ -19,7 +19,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   // product.
   let restaurantId: string | null = null;
   try {
-    restaurantId = restaurantIdFromCookieValue(jar.get(CONSOLE_SESSION_COOKIE)?.value);
+    restaurantId = restaurantIdFromCookieValue(jar.get(HOME_SESSION_COOKIE)?.value);
   } catch (error) {
     // Thrown when SESSION_SECRET is absent. Nobody can be signed in
     // without it, so the honest destination is the sign-in screen, which

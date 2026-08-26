@@ -1,6 +1,6 @@
 "use client";
 
-// app/(console)/billing/page.tsx — plan, invoices, and leaving.
+// app/(home)/billing/page.tsx — plan, invoices, and leaving.
 //
 // The cancellation flow is deliberately not hidden and not made painful.
 // It asks one question (why), states plainly what stops working and when,

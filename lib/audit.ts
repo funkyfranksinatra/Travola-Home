@@ -1,4 +1,4 @@
-// lib/audit.ts — the Console's record of who did what.
+// lib/audit.ts — Travola Home's record of who did what.
 //
 // Best-effort by design: an audit write must never fail the act it
 // describes (an owner cancelling a subscription should not be blocked by

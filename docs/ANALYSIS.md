@@ -84,7 +84,7 @@ and what actually happened.
 Most sold, least sold, and **never sold** — items on the menu that have never
 appeared on a closed check, which is more actionable than "least sold". Each item
 carries a menu-engineering quadrant (star / plowhorse / puzzle / dog) using price
-as a stand-in for margin, because the Console has no food-cost data. The UI says
+as a stand-in for margin, because Travola Home has no food-cost data. The UI says
 so.
 
 ---

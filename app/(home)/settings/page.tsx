@@ -1,6 +1,6 @@
 "use client";
 
-// app/(console)/settings/page.tsx — the handful of facts that shape the rest.
+// app/(home)/settings/page.tsx — the handful of facts that shape the rest.
 //
 // Service hours, days open and the timezone are not cosmetic: they are the
 // denominators behind seat utilisation and revenue per seat hour, and the
@@ -136,7 +136,7 @@ export default function SettingsPage() {
               label="Restaurant name"
               hint={
                 name.trim() !== data.restaurant.name
-                  ? "Changing this changes the sign-in name for the floor manager, the POS and this Console."
+                  ? "Changing this changes the sign-in name for the floor manager, the POS and Travola Home."
                   : "Typed at sign-in. Apostrophes and capitalisation do not matter."
               }
             >

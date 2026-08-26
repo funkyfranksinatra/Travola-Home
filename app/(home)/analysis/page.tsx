@@ -1,6 +1,6 @@
 "use client";
 
-// app/(console)/analysis/page.tsx — every shift this restaurant has run.
+// app/(home)/analysis/page.tsx — every shift this restaurant has run.
 //
 // Ordered the way an owner reads it: what changed, how the room performed,
 // when it was busy, what sold, then the raw shifts underneath for anyone
@@ -453,7 +453,7 @@ function MenuMix({ data }: { data: AnalysisResult }) {
     <section>
       <SectionHead
         title="Menu"
-        note="Quadrants use price as a stand-in for margin, because the Console has no food-cost data — read them as a prompt, not a verdict."
+        note="Quadrants use price as a stand-in for margin, because Travola Home has no food-cost data — read them as a prompt, not a verdict."
       />
       {mix.available === "awaiting_pos" ? (
         <div className="card p-5 awaiting">

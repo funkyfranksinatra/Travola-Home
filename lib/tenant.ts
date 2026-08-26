@@ -1,8 +1,8 @@
-// lib/tenant.ts — every Console request resolves its own tenant.
+// lib/tenant.ts — every request resolves its own tenant.
 //
 // There is no build-time restaurant constant. The tenant comes from the
 // signed session cookie on each request, so one deployment serves every
-// paying restaurant. CONSOLE_RESTAURANT_ID exists only as a local-sandbox
+// paying restaurant. HOME_RESTAURANT_ID exists only as a local-sandbox
 // convenience and is IGNORED in production, where an env-var tenant would
 // be a cross-restaurant data leak waiting to happen.
 import { getRestaurantId } from "./session";
@@ -11,8 +11,8 @@ import { configMessage, isConfigurationFailure, operationalError } from "./env";
 export function currentRestaurantId(req: Request) {
   const fromSession = getRestaurantId(req);
   if (fromSession) return fromSession;
-  if (process.env.NODE_ENV !== "production" && process.env.CONSOLE_RESTAURANT_ID) {
-    return process.env.CONSOLE_RESTAURANT_ID;
+  if (process.env.NODE_ENV !== "production" && process.env.HOME_RESTAURANT_ID) {
+    return process.env.HOME_RESTAURANT_ID;
   }
   return null;
 }

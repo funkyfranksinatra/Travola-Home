@@ -2,7 +2,7 @@
 //
 // `RestaurantSettings.prefs` is one JSON column shared by three apps. It
 // carries the floor app's tour state, auto-assign flag, sound alerts and
-// more alongside the handful of fields the Console edits. Writing it as a
+// more alongside the handful of fields Travola Home edits. Writing it as a
 // whole object would silently reset every setting a manager had chosen in
 // the floor manager — a bug nobody would connect to having changed the
 // turn time on a different screen.
@@ -31,7 +31,7 @@ function bounded(value: unknown, low: number, high: number): string | undefined 
 }
 
 /**
- * Apply the Console's edits on top of the existing blob, leaving every
+ * Apply Travola Home's edits on top of the existing blob, leaving every
  * key it does not own exactly as it found it.
  */
 export function mergePrefs(existing: Prefs | null | undefined, edits: PrefEdits): Prefs {

@@ -1,8 +1,8 @@
-// lib/prisma.ts — the one PrismaClient for the Console.
+// lib/prisma.ts — the one PrismaClient for Travola Home.
 //
 // SHARED-DB build: DATABASE_URL points at the SAME Neon database as
 // Travola-OS and the POS. The client generates into lib/generated/prisma
-// and mirrors only the tables the Console reads (see prisma/schema.prisma
+// and mirrors only the tables Travola Home reads (see prisma/schema.prisma
 // — this repo never migrates).
 //
 // The client is built LAZILY, on first query rather than at import. Two
@@ -19,7 +19,7 @@
 import { PrismaClient } from "./generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const globalForPrisma = globalThis as unknown as { prismaConsole?: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prismaHome?: PrismaClient };
 
 function makeClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
@@ -29,21 +29,21 @@ function makeClient(): PrismaClient {
   // env var that was never set.
   if (!connectionString) {
     throw new Error(
-      "DATABASE_URL is not set. The Console needs the same Neon connection string as Travola-OS and the POS.",
+      "DATABASE_URL is not set. Travola Home needs the same Neon connection string as Travola-OS and the POS.",
     );
   }
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
 function client(): PrismaClient {
-  if (!globalForPrisma.prismaConsole) {
+  if (!globalForPrisma.prismaHome) {
     const created = makeClient();
     // Cached in every environment: on serverless this keeps one pool per
     // warm instance, and in development it survives hot reloads instead
     // of leaking a connection per edit.
-    globalForPrisma.prismaConsole = created;
+    globalForPrisma.prismaHome = created;
   }
-  return globalForPrisma.prismaConsole;
+  return globalForPrisma.prismaHome;
 }
 
 /**
@@ -64,5 +64,5 @@ export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
 
 // NOTE: there is no RESTAURANT_ID constant. The tenant comes from the
 // signed restaurant session on every request — see lib/tenant.ts
-// (`requireRestaurant`). CONSOLE_RESTAURANT_ID remains only as a
+// (`requireRestaurant`). HOME_RESTAURANT_ID remains only as a
 // non-production convenience for local sandboxes.

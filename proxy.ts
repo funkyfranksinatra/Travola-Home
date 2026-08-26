@@ -23,11 +23,11 @@
 // Not reading the secret here removes that whole class of failure, and
 // rotating the secret no longer needs a rebuild to take effect.
 import { NextResponse, type NextRequest } from "next/server";
-import { CONSOLE_SESSION_COOKIE } from "@/lib/session";
+import { HOME_SESSION_COOKIE } from "@/lib/session";
 
 export function proxy(request: NextRequest) {
   try {
-    const cookie = request.cookies.get(CONSOLE_SESSION_COOKIE)?.value;
+    const cookie = request.cookies.get(HOME_SESSION_COOKIE)?.value;
     if (cookie) return NextResponse.next();
     return NextResponse.redirect(new URL("/login", request.url));
   } catch (error) {

@@ -86,11 +86,11 @@ export function operationalError(error: unknown): string {
     // twenty minutes ago sends them to check the one thing that is fine,
     // when the real answer is that the database itself is unreachable.
     return process.env.DATABASE_URL
-      ? "The Console cannot reach the database right now. The connection string is configured, so this is the database being unreachable rather than a missing setting — it usually clears on its own."
-      : "The Console cannot reach the database because DATABASE_URL is not set on this deployment. It needs the same Neon connection string as the floor manager and the POS.";
+      ? "Travola Home cannot reach the database right now. The connection string is configured, so this is the database being unreachable rather than a missing setting — it usually clears on its own."
+      : "Travola Home cannot reach the database because DATABASE_URL is not set on this deployment. It needs the same Neon connection string as the floor manager and the POS.";
   }
   if (/SESSION_SECRET/i.test(message)) {
-    return "The Console has no SESSION_SECRET configured, so it cannot sign anyone in. Set it to the same value the floor manager and the POS use.";
+    return "Travola Home has no SESSION_SECRET configured, so it cannot sign anyone in. Set it to the same value the floor manager and the POS use.";
   }
   if (/DATABASE_URL/i.test(message)) return message;
   return "Something went wrong. The deployment logs will have the detail.";

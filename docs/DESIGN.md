@@ -3,8 +3,8 @@
 ## The frame
 
 Top tabs, not a side rail — the same 56px bar, brand lockup and uppercase tab
-treatment as Travola-OS. A manager moving between the floor manager and the
-Console should not have to relearn where anything is; the muscle memory is the
+treatment as Travola-OS. A manager moving between the floor manager and Travola
+Home should not have to relearn where anything is; the muscle memory is the
 point.
 
 Seven tabs: **Overview · Analysis · Predictions · Logins · Plan & billing ·
@@ -95,7 +95,7 @@ teaches people to stop reading it.
 
 ## The floor plan
 
-The Console's most important picture, and not for decoration: an owner opening a
+Travola Home's most important picture, and not for decoration: an owner opening a
 management page recognises their own dining room instantly, and recognising it is
 what makes the numbers beside it feel like they are about *their* restaurant.
 

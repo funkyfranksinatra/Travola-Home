@@ -9,7 +9,7 @@ import { buildAnalysis } from "@/lib/analytics/analysis";
 import { billing } from "@/lib/billing";
 import { hasAdminPasscode } from "@/lib/restaurant-auth";
 import { adminWindowRemaining } from "@/lib/session";
-import { CONSOLE_SESSION_COOKIE } from "@/lib/session";
+import { HOME_SESSION_COOKIE } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -56,8 +56,8 @@ export async function GET(request: Request) {
       .get("cookie")
       ?.split(";")
       .map((part) => part.trim())
-      .find((part) => part.startsWith(`${CONSOLE_SESSION_COOKIE}=`))
-      ?.slice(CONSOLE_SESSION_COOKIE.length + 1);
+      .find((part) => part.startsWith(`${HOME_SESSION_COOKIE}=`))
+      ?.slice(HOME_SESSION_COOKIE.length + 1);
 
     const payload = (forecast?.payload ?? null) as Record<string, unknown> | null;
     const covers = (payload?.covers ?? null) as Record<string, unknown> | null;

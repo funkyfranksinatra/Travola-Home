@@ -40,7 +40,7 @@ const TABLES = {
   menuCategories: { label: "Menu categories", model: "menuCategory" },
   forecasts: { label: "Shift forecasts", model: "shiftForecast" },
   serviceEvents: { label: "Service events", model: "serviceEvent" },
-  auditLog: { label: "Console audit log", model: "auditLog" },
+  auditLog: { label: "Travola Home audit log", model: "auditLog" },
   invoices: { label: "Invoices", model: "invoice" },
 } as const;
 

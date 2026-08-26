@@ -151,7 +151,7 @@ export async function POST(request: Request) {
     return setSession(
       NextResponse.json({
         ok: true,
-        note: "Everyone signing in to the floor manager, the POS or the Console will need the new code.",
+        note: "Everyone signing in to the floor manager, the POS or Travola Home will need the new code.",
       }),
       restaurantId,
       true,

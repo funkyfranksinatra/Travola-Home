@@ -5,10 +5,10 @@
 No payment processor is connected to Travola yet. There were two bad options and
 one good one:
 
-1. Block the whole Console on setting up a processor. Slow, and it makes the
+1. Block the whole Travola Home on setting up a processor. Slow, and it makes the
    billing page's design hostage to an account nobody has opened yet.
 2. Hard-code a processor's shapes into the components. Cheap now, a rewrite later.
-3. **Put a seam in.** The Console talks to a `BillingProvider` interface. A
+3. **Put a seam in.** Travola Home talks to a `BillingProvider` interface. A
    `stub` implementation keeps the full subscription lifecycle in our own
    database. When a processor is wired up, its adapter satisfies the same
    interface, the stored `Subscription` row gains provider ids, and **no
@@ -49,6 +49,6 @@ promise cannot silently drift.
 1. Write `lib/billing/stripe.ts` implementing `BillingProvider`.
 2. Add the branch in `lib/billing/index.ts`.
 3. Set `BILLING_PROVIDER=stripe` and the price ids.
-4. Add a webhook route that writes `Subscription` and `Invoice` rows — the
-   Console renders from those columns, never from live API calls, so the billing
+4. Add a webhook route that writes `Subscription` and `Invoice` rows — Travola
+Home renders from those columns, never from live API calls, so the billing
    page does not go blank when the processor has a bad minute.

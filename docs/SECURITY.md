@@ -2,14 +2,15 @@
 
 ## One credential, three products
 
-A restaurant's name and four-digit code sign it in to Travola-OS, the POS and the
-Console. All three hash with the identical scheme (`scrypt$<salt>$<derived>`) and
+A restaurant's name and four-digit code sign it in to Travola-OS, the POS and
+Travola Home. All three hash with the identical scheme
+(`scrypt$<salt>$<derived>`) and
 all three normalise the restaurant name through the **same** `nameKey` function,
 copied verbatim between repos — which is what makes "Volario's" typed on an iPad
 with a curly apostrophe resolve to the restaurant registered from a desktop.
 
 Sessions are HMAC-signed cookies over a shared `SESSION_SECRET`. The cookie
-**names** differ (`travola_console_session` / `travola_pos_session` /
+**names** differ (`travola_home_session` / `travola_pos_session` /
 the floor app's) so one device can hold all three at once and signing out of one
 does not sign out the others. The signatures are interchangeable, so moving all
 three onto `travola.app` subdomains and sharing one cookie later is a rename,
@@ -24,7 +25,7 @@ four digits the whole floor knows. It gates:
 - changing the restaurant code
 - changing the owner code itself
 
-Until an owner sets one, the Console falls back to the restaurant passcode **and
+Until an owner sets one, Travola Home falls back to the restaurant passcode **and
 nags on the overview page**, because a code every server knows is not an owner
 credential.
 

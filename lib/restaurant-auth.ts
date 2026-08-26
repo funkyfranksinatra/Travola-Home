@@ -1,10 +1,10 @@
-// lib/restaurant-auth.ts — restaurant credentials for the Console.
+// lib/restaurant-auth.ts — restaurant credentials for Travola Home.
 //
 // Byte-for-byte the same scheme the floor app writes at registration
 // (`scrypt$<salt>$<derived>`), so a passcode set once in Travola-OS
-// signs the restaurant into the Console too.
+// signs the restaurant into Travola Home too.
 //
-// Unlike the POS, the Console is a WRITER of credentials: it is where an
+// Unlike the POS, Travola Home is a WRITER of credentials: it is where an
 // owner rotates the restaurant passcode, sets the separate admin
 // passcode, and resets or revokes a staff PIN. Every one of those writes
 // goes through here and is audit-logged by the caller.

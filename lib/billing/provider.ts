@@ -1,8 +1,8 @@
-// lib/billing/provider.ts — one seam between the Console and money.
+// lib/billing/provider.ts — one seam between Travola Home and money.
 //
 // There is no payment processor connected yet, and pretending otherwise
 // would either block this whole page on a Stripe account or bake Stripe's
-// shapes into every component. Instead the Console talks to this
+// shapes into every component. Instead Travola Home talks to this
 // interface, and a `stub` implementation keeps the full subscription
 // lifecycle in our own database.
 //

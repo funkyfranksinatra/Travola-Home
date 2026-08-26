@@ -59,7 +59,7 @@ export function Shell({
           <img src="/brand/travola-icon.svg" alt="" aria-hidden="true" className="w-6 h-6 rounded-[6px]" />
           <span className="hidden sm:flex items-baseline gap-2.5">
             <span className="font-display text-base font-bold tracking-wide text-ai">Travola</span>
-            <span className="font-mono text-[9px] text-ink-400 tracking-[0.2em] uppercase">Console</span>
+            <span className="font-mono text-[9px] text-ink-400 tracking-[0.2em] uppercase">Home</span>
           </span>
         </Link>
 

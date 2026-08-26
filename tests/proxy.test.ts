@@ -18,7 +18,7 @@ import { test } from "node:test";
 function fakeRequest(cookieValue?: string) {
   return {
     url: "https://console.travola.app/analysis",
-    cookies: { get: (name: string) => (cookieValue && name === "travola_console_session" ? { value: cookieValue } : undefined) },
+    cookies: { get: (name: string) => (cookieValue && name === "travola_home_session" ? { value: cookieValue } : undefined) },
     nextUrl: new URL("https://console.travola.app/analysis"),
   } as never;
 }

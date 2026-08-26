@@ -1,9 +1,9 @@
 "use client";
 
-// app/(console)/predictions/page.tsx — the AI's week, and its track record.
+// app/(home)/predictions/page.tsx — the AI's week, and its track record.
 //
 // Read-only: the floor app owns forecast generation and its research
-// budget. What the Console adds is the part that makes a forecast worth
+// budget. What Travola Home adds is the part that makes a forecast worth
 // acting on — how the last two months of predictions actually scored. A
 // number with no history behind it is a guess in a nice font, so accuracy
 // is placed ABOVE the week rather than buried under it.

@@ -1,4 +1,4 @@
-// lib/format.ts — every number the Console prints goes through here.
+// lib/format.ts — every number Travola Home prints goes through here.
 //
 // Formatting lives in one file because inconsistency reads as sloppiness:
 // $1,240 in one card and $1240.00 in the next makes a page look like two

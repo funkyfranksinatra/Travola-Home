@@ -1,6 +1,6 @@
 "use client";
 
-// app/(console)/staff/page.tsx — who can get in, and with what.
+// app/(home)/staff/page.tsx — who can get in, and with what.
 //
 // This is the page an owner opens the morning after someone quits, so the
 // revoke path is one click and takes effect at the next POS sign-in. Staff
@@ -230,7 +230,7 @@ function Credentials({ adminSet, restaurantName, onSaved }: {
   return (
     <section className="grid gap-4 lg:grid-cols-2">
       <Card className="p-5 p-5">
-        <SectionHeading title="Restaurant code" note={`Opens the floor manager, the POS and this Console for ${restaurantName}.`} />
+        <SectionHeading title="Restaurant code" note={`Opens the floor manager, the POS and Travola Home for ${restaurantName}.`} />
         <p className="text-sm text-ink-400">
           Change it and everyone will need the new four digits. Managers who have a device signed in stay signed in
           until they sign out.

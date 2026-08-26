@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════
-// Travola Console — schema.prisma  (SHARED-DB build)
+// Travola Home — schema.prisma  (SHARED-DB build)
 //
-// The Console, Travola-OS (floor manager) and Travola-POS all point at
+// Travola Home, Travola-OS (floor manager) and Travola-POS all point at
 // the SAME Postgres database (Neon). This schema mirrors the tables the
 // Console reads and the small set it owns:
 //
-//   · Console-owned:  Subscription, Invoice, AuditLog, DataExport
+//   · Home-owned:  Subscription, Invoice, AuditLog, DataExport
 //   · Read-mostly:    Restaurant, Server, Table, Floor, RestaurantSettings
 //   · Analytics read: Reservation, WaitlistEntry, Shift, ShiftServer,
 //                     Guest, ShiftForecast, ForecastAccuracy,
@@ -69,7 +69,7 @@ enum BookingSource {
 
 // ─── The account boundary ────────────────────────────────────────────
 
-/// Owned by the floor app. The Console reads it to verify the
+/// Owned by the floor app. Travola Home reads it to verify the
 /// restaurant name + 4-digit passcode at sign-in (the same credential
 /// used on Travola-OS and Travola-POS), and it is the ONE place the
 /// Console writes credentials: passcode rotation and the separate
@@ -80,10 +80,10 @@ model Restaurant {
   nameKey       String   @unique
   passcodeHash  String
   recoveryEmail String?
-  /// Console-added. A SECOND credential, distinct from the 4-digit
+  /// Home-added. A SECOND credential, distinct from the 4-digit
   /// staff-facing passcode, required for irreversible acts (delete all
   /// data, rotate the restaurant passcode). Null until an owner sets
-  /// one; while null the Console falls back to the restaurant passcode
+  /// one; while null Travola Home falls back to the restaurant passcode
   /// and nags the owner to set a real one.
   adminPasscodeHash String?
   createdAt     DateTime @default(now())
@@ -96,11 +96,11 @@ model Restaurant {
   auditLogs    AuditLog[]
 }
 
-// ─── Console-owned: subscription & billing ───────────────────────────
+// ─── Home-owned: subscription & billing ───────────────────────────
 
 /// One row per restaurant. Provider-agnostic on purpose: `provider`
 /// is "stub" until a real payment processor is connected, at which
-/// point the same row carries the processor's ids and the Console
+/// point the same row carries the processor's ids and Travola Home
 /// keeps rendering from these columns rather than from live API calls
 /// (a billing page must not go blank when Stripe has a bad minute).
 model Subscription {
@@ -165,7 +165,7 @@ model Invoice {
   @@index([restaurantId, issuedAt])
 }
 
-// ─── Console-owned: audit trail ──────────────────────────────────────
+// ─── Home-owned: audit trail ──────────────────────────────────────
 
 /// Every consequential Console act: credential changes, staff removal,
 /// plan changes, exports, deletions. This is what makes the product

@@ -6,8 +6,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Travola Console",
-  description: "Travola Console — plan, analyse and administer your restaurant.",
+  title: "Travola Home",
+  description: "Travola Home — plan, analyse and administer your restaurant.",
 };
 
 export default function RootLayout({

@@ -6,6 +6,12 @@
 // wording as the floor app and the POS. A manager who has signed into one
 // has signed into all three; making this screen look clever would only
 // make them wonder whether it wants something different.
+//
+// It also carries the configuration banner. This is where a bounced page
+// request lands, and where someone types a code that was never wrong when
+// the real problem is an environment variable — so the page asks
+// /api/health on mount and says so before anyone starts doubting
+// themselves.
 import { useEffect, useState } from "react";
 import { Button, Field, inputClass } from "@/components/ui";
 
@@ -19,10 +25,6 @@ export default function LoginPage() {
   const [isConfig, setIsConfig] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Ask up front whether this deployment is actually wired up, so a
-  // misconfiguration is on screen before anyone types a code and starts
-  // doubting a passcode that was never wrong. Also what a bounced page
-  // request lands on: the layout sends unusable sessions here.
   useEffect(() => {
     fetch("/api/health")
       .then((response) => (response.ok ? null : response.json()))
@@ -33,7 +35,7 @@ export default function LoginPage() {
           setError(`This deployment is not fully configured. ${problems.map((p) => p.fix).join(" ")}`);
         } else if (data && data.database && !data.database.ok) {
           setIsConfig(true);
-          setError(`The Console cannot reach the database: ${data.database.detail}`);
+          setError(`Travola Home cannot reach the database: ${data.database.detail}`);
         }
       })
       .catch(() => undefined);
@@ -70,55 +72,74 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <form onSubmit={submit} className="tv-card w-full max-w-sm space-y-4">
-        <div>
-          <p className="tv-label">Travola</p>
-          <h1 className="tv-heading text-ink-50 mt-0.5">Console</h1>
-          <p className="text-sm text-ink-400 mt-2">
-            Sign in with the same restaurant name and code you use for the floor manager and the POS.
-          </p>
+    <div className="min-h-screen flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="flex items-center gap-2.5 mb-6">
+          <img src="/brand/travola-icon.svg" alt="" aria-hidden="true" className="w-9 h-9 rounded-[9px]" />
+          <span className="flex items-baseline gap-2.5">
+            <span className="text-xl font-bold tracking-wide text-ai">Travola</span>
+            <span className="font-mono text-[9px] text-ink-400 tracking-[0.2em] uppercase">Home</span>
+          </span>
         </div>
 
-        <Field label="Restaurant name">
-          <input
-            className={inputClass}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            autoComplete="organization"
-            autoFocus
-            required
-          />
-        </Field>
-
-        <Field label="Code">
-          <input
-            className={inputClass}
-            value={passcode}
-            onChange={(event) => setPasscode(event.target.value.replace(/\D/g, "").slice(0, 4))}
-            inputMode="numeric"
-            autoComplete="current-password"
-            placeholder="····"
-            required
-          />
-        </Field>
-
-        {error ? (
-          <div className={isConfig ? "rounded-lg border border-state-dining/30 bg-state-diningBg p-3" : ""}>
-            <p className={`text-sm ${isConfig ? "text-state-dining" : "text-state-seated"}`}>{error}</p>
-            {isConfig ? (
-              <p className="text-xs text-ink-400 mt-2">
-                This is a setup problem, not a wrong code — retyping it will not help.{" "}
-                <a href="/api/health" className="text-ai underline">Check what is missing</a>.
-              </p>
-            ) : null}
+        <form onSubmit={submit} className="card card-lit p-6 flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-ink-50">Sign in</h1>
+            <p className="text-sm text-ink-400 mt-2 leading-relaxed">
+              Use the same restaurant name and code as the floor manager and the POS.
+            </p>
           </div>
-        ) : null}
 
-        <Button type="submit" tone="primary" disabled={busy || !name || passcode.length < 4} className="w-full">
-          {busy ? "Signing in…" : "Sign in"}
-        </Button>
-      </form>
+          <Field label="Restaurant name">
+            <input
+              className={inputClass}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              autoComplete="organization"
+              autoFocus
+              required
+            />
+          </Field>
+
+          <Field label="Code">
+            <input
+              className={`${inputClass} tracking-[0.5em] text-lg`}
+              value={passcode}
+              onChange={(event) => setPasscode(event.target.value.replace(/\D/g, "").slice(0, 4))}
+              inputMode="numeric"
+              autoComplete="current-password"
+              placeholder="••••"
+              required
+            />
+          </Field>
+
+          {error ? (
+            <div
+              className={
+                isConfig
+                  ? "rounded-xl border border-state-dining/30 bg-state-diningBg p-3"
+                  : "rounded-xl border border-state-seated/30 bg-state-seatedBg p-3"
+              }
+            >
+              <p className={`text-sm ${isConfig ? "text-state-dining" : "text-state-seated"}`}>{error}</p>
+              {isConfig ? (
+                <p className="text-xs text-ink-400 mt-2 leading-relaxed">
+                  This is a setup problem, not a wrong code — retyping it will not help.{" "}
+                  <a href="/api/health" className="text-ai underline">Check what is missing</a>.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <Button type="submit" tone="primary" disabled={busy || !name || passcode.length < 4} className="w-full">
+            {busy ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
+
+        <p className="text-xs text-ink-400/70 mt-5 text-center leading-relaxed">
+          Travola Home is the account and analysis view. The floor manager and the POS sign in with this same code.
+        </p>
+      </div>
     </div>
   );
 }

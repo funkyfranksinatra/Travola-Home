@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       // every restaurant on the platform.
       return NextResponse.json({ error: "That restaurant name and code do not match." }, { status: 401 });
     }
-    await audit({ restaurantId: restaurant.id, action: "auth.sign_in", summary: "Signed in to the Console", req: request });
+    await audit({ restaurantId: restaurant.id, action: "auth.sign_in", summary: "Signed in to Travola Home", req: request });
     return setSession(
       NextResponse.json({ ok: true, restaurant: { id: restaurant.id, name: restaurant.name } }),
       restaurant.id,

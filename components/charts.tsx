@@ -1,6 +1,6 @@
 "use client";
 
-// components/charts.tsx — every mark the Console draws.
+// components/charts.tsx — every mark Travola Home draws.
 //
 // Hand-rolled SVG rather than a charting library: these shapes are simple,
 // and a library would add ~100KB to a page whose job is to open fast on a

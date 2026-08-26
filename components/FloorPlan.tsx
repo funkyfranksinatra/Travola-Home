@@ -2,7 +2,7 @@
 
 // components/FloorPlan.tsx — the restaurant's own room, drawn from its data.
 //
-// This is the Console's most important picture, and the reason is not
+// This is Travola Home's most important picture, and the reason is not
 // decoration: an owner opening a management page recognises their own
 // dining room instantly, and recognising it is what makes the numbers
 // beside it feel like they are about *their* restaurant rather than about

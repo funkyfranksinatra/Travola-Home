@@ -74,7 +74,7 @@ export function periodForHour(hour: number): "BRUNCH" | "LUNCH" | "DINNER" {
  * Popularity is measured against 70% of a fair equal share — the standard
  * cutoff — rather than against the mean, which a single runaway seller
  * would drag high enough to label the whole menu unpopular. Profit is
- * approximated by price, because the Console has no food-cost data: the
+ * approximated by price, because Travola Home has no food-cost data: the
  * quadrant is therefore advisory, and the UI says so.
  */
 export function quadrantFor(opts: {

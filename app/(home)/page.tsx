@@ -1,6 +1,6 @@
 "use client";
 
-// app/(console)/page.tsx — the plan view.
+// app/(home)/page.tsx — the plan view.
 //
 // Ordered the way an owner actually reads it: what needs a decision, then
 // the room, then how the last month went. The floor plan is given the most

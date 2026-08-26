@@ -2,7 +2,7 @@
 //
 // The single most important idea here is `availability`. This restaurant
 // has nineteen months of covers history (much of it imported from a
-// previous system) and, on the day the Console ships, no money history at
+// previous system) and, on the day Travola Home ships, no money history at
 // all — the POS has only just gone live. A dashboard that answers
 // "average bill: $0.00" in that situation is worse than one that says
 // nothing: it is confidently wrong, and an owner who sees one zero stops

@@ -15,7 +15,7 @@
 //     CLOCK into naive `timestamp without time zone` columns. Volario's
 //     16:00–21:00 service is stored as 16:00–21:00, and the floor app
 //     reads it back with getHours() on a UTC server — which returns the
-//     stored local hour unchanged. So the Console reads those columns
+//     stored local hour unchanged. So Travola Home reads those columns
 //     NAIVELY too. (Verified against production: targetTime hours run
 //     16–21, exactly the configured 960–1260 service window. Converting
 //     them through America/Denver produced hours of 9–15 and filed the
