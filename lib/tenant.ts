@@ -6,6 +6,7 @@
 // convenience and is IGNORED in production, where an env-var tenant would
 // be a cross-restaurant data leak waiting to happen.
 import { getRestaurantId } from "./session";
+import { configMessage, operationalError } from "./env";
 
 export function currentRestaurantId(req: Request) {
   const fromSession = getRestaurantId(req);
@@ -33,11 +34,17 @@ export async function withTenant(
   req: Request,
   handler: (restaurantId: string) => Promise<Response>,
 ) {
+  // A deployment missing an env var should say so once, here, rather
+  // than surfacing as a different unhelpful error on every screen.
+  const misconfigured = configMessage();
+  if (misconfigured) {
+    return Response.json({ error: misconfigured, configuration: true }, { status: 503 });
+  }
   try {
     return await handler(requireRestaurant(req));
   } catch (error) {
     if (error instanceof Response) return error;
     console.error("[console]", error);
-    return Response.json({ error: "Something went wrong." }, { status: 500 });
+    return Response.json({ error: operationalError(error), configuration: true }, { status: 503 });
   }
 }

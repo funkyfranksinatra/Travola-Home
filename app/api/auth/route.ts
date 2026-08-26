@@ -7,26 +7,40 @@ import { NextResponse } from "next/server";
 import { allowAttempt, restaurantByCredentials, verifyAdminPasscode } from "@/lib/restaurant-auth";
 import { clearSession, getRestaurantId, setSession } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import { configMessage, operationalError } from "@/lib/env";
 
 export async function POST(request: Request) {
   if (!allowAttempt(request, "console-login")) {
     return NextResponse.json({ error: "Too many attempts. Wait a minute and try again." }, { status: 429 });
   }
-  const body = await request.json().catch(() => null);
-  const name = body?.name;
-  const passcode = String(body?.passcode ?? "");
-  const restaurant = await restaurantByCredentials(name, passcode);
-  if (!restaurant) {
-    // Deliberately one message for both "no such restaurant" and "wrong
-    // code": naming which half was wrong hands an attacker a directory of
-    // every restaurant on the platform.
-    return NextResponse.json({ error: "That restaurant name and code do not match." }, { status: 401 });
+
+  // Check configuration before touching the database, so a missing env
+  // var is reported as a missing env var rather than as a timeout.
+  const misconfigured = configMessage();
+  if (misconfigured) {
+    return NextResponse.json({ error: misconfigured, configuration: true }, { status: 503 });
   }
-  await audit({ restaurantId: restaurant.id, action: "auth.sign_in", summary: "Signed in to the Console", req: request });
-  return setSession(
-    NextResponse.json({ ok: true, restaurant: { id: restaurant.id, name: restaurant.name } }),
-    restaurant.id,
-  );
+
+  try {
+    const body = await request.json().catch(() => null);
+    const name = body?.name;
+    const passcode = String(body?.passcode ?? "");
+    const restaurant = await restaurantByCredentials(name, passcode);
+    if (!restaurant) {
+      // Deliberately one message for both "no such restaurant" and "wrong
+      // code": naming which half was wrong hands an attacker a directory of
+      // every restaurant on the platform.
+      return NextResponse.json({ error: "That restaurant name and code do not match." }, { status: 401 });
+    }
+    await audit({ restaurantId: restaurant.id, action: "auth.sign_in", summary: "Signed in to the Console", req: request });
+    return setSession(
+      NextResponse.json({ ok: true, restaurant: { id: restaurant.id, name: restaurant.name } }),
+      restaurant.id,
+    );
+  } catch (error) {
+    console.error("[auth] sign-in failed:", error);
+    return NextResponse.json({ error: operationalError(error), configuration: true }, { status: 503 });
+  }
 }
 
 /** Prove the admin passcode, opening the destructive-action window. */

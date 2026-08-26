@@ -62,3 +62,77 @@ test("dates render in UTC so a service day never slips by one", () => {
   assert.equal(dateLabel("nonsense"), "nonsense");
   assert.equal(periodLabel("DINNER"), "Dinner");
 });
+
+// ── Configuration diagnostics ─────────────────────────────────────────
+// Regression cover for the deployment that answered "That did not work."
+// on the sign-in screen when the real problem was an unset DATABASE_URL,
+// sending the user to check a password that was never wrong.
+import { configProblems, configMessage, operationalError } from "../lib/env.ts";
+
+function withEnv(vars: Record<string, string | undefined>, run: () => void) {
+  const saved: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(vars)) {
+    saved[key] = process.env[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    run();
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+test("a missing DATABASE_URL is reported as a missing DATABASE_URL", () => {
+  withEnv({ DATABASE_URL: undefined, SESSION_SECRET: "x" }, () => {
+    const problems = configProblems();
+    assert.equal(problems.length, 1);
+    assert.equal(problems[0].key, "DATABASE_URL");
+    assert.match(configMessage() ?? "", /DATABASE_URL/);
+  });
+});
+
+test("the build placeholder connection string counts as missing", () => {
+  // prisma.config.ts supplies a localhost placeholder so `prisma
+  // generate` can run without a database. If it survives to runtime the
+  // real value was never set, and the driver would otherwise dial
+  // 127.0.0.1 and blame the database.
+  withEnv({ DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder", SESSION_SECRET: "x" }, () => {
+    assert.equal(configProblems().length, 1);
+    assert.match(configMessage() ?? "", /DATABASE_URL/);
+  });
+});
+
+test("a real connection string with a session secret is clean", () => {
+  withEnv({ DATABASE_URL: "postgresql://u:p@ep-x.neon.tech/neondb?sslmode=verify-full", SESSION_SECRET: "x" }, () => {
+    assert.deepEqual(configProblems(), []);
+    assert.equal(configMessage(), null);
+  });
+});
+
+test("both missing variables are named, not just the first", () => {
+  withEnv({ DATABASE_URL: undefined, SESSION_SECRET: undefined }, () => {
+    const message = configMessage() ?? "";
+    assert.match(message, /DATABASE_URL/);
+    assert.match(message, /SESSION_SECRET/);
+  });
+});
+
+test("Prisma's unreachable-database error points at the env var, not the database", () => {
+  const error = Object.assign(new Error("Can't reach database server at 127.0.0.1:5432"), { code: "P1001" });
+  assert.match(operationalError(error), /DATABASE_URL/);
+  assert.match(operationalError(new Error("DriverAdapterError: DatabaseNotReachable")), /DATABASE_URL/);
+  assert.match(
+    operationalError(new Error("SESSION_SECRET is required to use restaurant sessions.")),
+    /SESSION_SECRET/,
+  );
+});
+
+test("an unrecognised failure does not pretend to diagnose itself", () => {
+  const message = operationalError(new Error("something exploded"));
+  assert.doesNotMatch(message, /DATABASE_URL|SESSION_SECRET/);
+  assert.match(message, /logs/);
+});
