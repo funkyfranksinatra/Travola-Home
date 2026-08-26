@@ -22,10 +22,15 @@ export function configProblems(): ConfigProblem[] {
       detail: "No database connection string is configured.",
       fix: "Set DATABASE_URL on this deployment to the same Neon connection string the floor manager and the POS use.",
     });
-  } else if (/localhost|127\.0\.0\.1|placeholder/i.test(databaseUrl)) {
+  } else if (/\bplaceholder\b/i.test(databaseUrl)) {
     // The build-time placeholder in prisma.config.ts exists so
     // `prisma generate` can run without a database. If it ever reaches
     // the runtime it means the real value is missing.
+    //
+    // Matched on the word "placeholder" ONLY. An earlier version also
+    // rejected any localhost URL, which flagged a perfectly good local
+    // development database as misconfigured — the check has to catch the
+    // placeholder without calling every developer's laptop broken.
     problems.push({
       key: "DATABASE_URL",
       detail: "The database connection string is still the local build placeholder.",

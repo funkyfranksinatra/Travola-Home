@@ -136,3 +136,17 @@ test("an unrecognised failure does not pretend to diagnose itself", () => {
   assert.doesNotMatch(message, /DATABASE_URL|SESSION_SECRET/);
   assert.match(message, /logs/);
 });
+
+test("a local development database is not mistaken for the placeholder", () => {
+  // An earlier version of this check rejected any localhost URL, which
+  // called every developer's local Postgres a misconfiguration.
+  withEnv({ DATABASE_URL: "postgresql://postgres@localhost:5432/travola_dev", SESSION_SECRET: "x" }, () => {
+    assert.deepEqual(configProblems(), [], "a local dev database is a real database");
+  });
+  withEnv({ DATABASE_URL: "postgresql://postgres@localhost:5433/console_test?host=/tmp/pgsock", SESSION_SECRET: "x" }, () => {
+    assert.deepEqual(configProblems(), []);
+  });
+  withEnv({ DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder", SESSION_SECRET: "x" }, () => {
+    assert.equal(configProblems().length, 1, "but the build placeholder is still caught");
+  });
+});
