@@ -178,13 +178,36 @@ export async function buildAnalysis(opts: {
   const tipCents = moneyDays.reduce((s, r) => s + count(r.tips), 0);
   const subtotalCents = moneyDays.reduce((s, r) => s + count(r.subtotal), 0);
 
-  const hasMoney = checksCount > 0;
+  // TWO GRADES of money data, and conflating them is how a page prints a
+  // confident wrong number.
+  //
+  //   hasMoney  — we know what the restaurant TOOK. True from a shift
+  //               close-out alone. Revenue, per-person average, growth
+  //               and RevPASH all work from this.
+  //   hasChecks — we know how many BILLS made up that money. Only closed
+  //               checks carry it. Average bill, median bill and tip
+  //               percentage need it and are honestly withheld without it.
+  //
+  // Dividing revenue by covers and calling it "average bill" would be
+  // the tempting shortcut here. It is a different number — a table of
+  // four is one bill and four covers — and printing one under the
+  // other's label is exactly the kind of quiet lie that makes an owner
+  // stop trusting the whole tab.
+  const hasMoney = (revenueCents ?? 0) > 0;
+  const hasChecks = checksCount > 0;
+
   const moneyGap: { available: Availability; reason: string } = {
     available: "awaiting_pos",
     reason:
-      count(bounds.closedChecks) > 0
-        ? "No checks were closed inside this window."
-        : "No checks have been closed in the POS yet. This fills in automatically once service runs on the POS.",
+      "No sales recorded for this window yet. Close out a service in Pantry and revenue fills in here.",
+  };
+
+  /** Withheld because we know the money but not the bill count. */
+  const checkGap: { available: Availability; reason: string } = {
+    available: "awaiting_pos",
+    reason: hasMoney
+      ? "A close-out records what the night took, not how many bills it took to get there — so this needs item-level sales from a connected POS."
+      : moneyGap.reason,
   };
 
   const thin = serviceDays > 0 && serviceDays < THIN_SAMPLE_DAYS;
@@ -236,19 +259,19 @@ export async function buildAnalysis(opts: {
   }));
 
   // ── Money ──────────────────────────────────────────────────────────
-  const avgCheck = hasMoney ? Math.round((revenueCents ?? 0) / checksCount) : null;
+  const avgCheck = hasChecks ? Math.round((revenueCents ?? 0) / checksCount) : null;
   const priorAvgCheck = priorMoneyDays.length
     ? Math.round((priorRevenueCents ?? 0) / Math.max(1, priorMoneyDays.reduce((s, r) => s + count(r.checks), 0)))
     : null;
   metrics.push(metric("avg_check", "Average bill", "money", "cents", avgCheck, {
-    ...(hasMoney ? state(true) : moneyGap),
+    ...(hasChecks ? state(true) : checkGap),
     sampleSize: checksCount,
     trend: trend(avgCheck, priorAvgCheck, basis, "up"),
     hint: "Total per closed check, tip included.",
   }));
-  const medianCheck = hasMoney ? median(moneyDays.map((r) => num(r.median_check))) : null;
+  const medianCheck = hasChecks ? median(moneyDays.map((r) => num(r.median_check))) : null;
   metrics.push(metric("median_check", "Median bill", "money", "cents", medianCheck, {
-    ...(hasMoney ? state(true) : moneyGap),
+    ...(hasChecks ? state(true) : checkGap),
     hint: "Half of bills land under this. Less swayed by one big party than the average.",
   }));
   const ppa = hasMoney && moneyGuestCount > 0 ? Math.round((revenueCents ?? 0) / moneyGuestCount) : null;
@@ -260,17 +283,18 @@ export async function buildAnalysis(opts: {
     ...(hasMoney ? state(true) : moneyGap),
     trend: trend(revenueCents, priorRevenueCents, basis, "up"),
     sampleSize: moneyDays.length,
-    hint: moneyDays.length && revenueCents ? `${money(Math.round(revenueCents / moneyDays.length))} per day with POS revenue` : undefined,
+    hint: moneyDays.length && revenueCents ? `${money(Math.round(revenueCents / moneyDays.length))} per day with sales on record` : undefined,
   }));
-  const tipPct = hasMoney && subtotalCents > 0 ? (tipCents / subtotalCents) * 100 : null;
+  const tipPct = hasChecks && subtotalCents > 0 ? (tipCents / subtotalCents) * 100 : null;
   metrics.push(metric("tip_pct", "Tip rate", "money", "percent", tipPct, {
-    ...(hasMoney ? state(true) : moneyGap),
+    ...(hasChecks ? state(true) : checkGap),
     hint: "Tips as a share of pre-tax subtotal — a proxy for how service landed.",
   }));
   // Revenue-derived rates divide by the days that ACTUALLY had revenue,
-  // not by every service day in the window. Dividing a month of POS
-  // revenue across a 90-day window that predates the POS understates the
-  // rate by a factor of three and makes the restaurant look unprofitable.
+  // not by every service day in the window. Dividing a month of recorded
+  // revenue across a 90-day window that predates any close-out
+  // understates the rate by a factor of three and makes the restaurant
+  // look unprofitable.
   const moneyDayCount = moneyDays.length;
   const rev = revPASH({
     revenueCents: hasMoney ? revenueCents : null,
@@ -281,7 +305,7 @@ export async function buildAnalysis(opts: {
   metrics.push(metric("revpash", "Revenue per seat hour", "money", "cents", rev != null ? Math.round(rev) : null, {
     ...(hasMoney ? state(true) : moneyGap),
     sampleSize: moneyDayCount,
-    hint: `Across ${ctx.seats} seats and ${ctx.serviceHoursPerDay.toFixed(1)}h of service, over the ${moneyDayCount} ${moneyDayCount === 1 ? "day" : "days"} with POS revenue.`,
+    hint: `Across ${ctx.seats} seats and ${ctx.serviceHoursPerDay.toFixed(1)}h of service, over the ${moneyDayCount} ${moneyDayCount === 1 ? "day" : "days"} with sales on record.`,
   }));
 
   // ── Throughput & pace ──────────────────────────────────────────────
@@ -317,7 +341,7 @@ export async function buildAnalysis(opts: {
   const paceGap: { available: Availability; reason: string } = {
     available: "awaiting_pos",
     reason: count(bounds.tableSessions) === 0
-      ? "No table sessions recorded yet. These are written when the floor app seats a party and the POS settles its check."
+      ? "No table sessions recorded yet. These are written when the floor app seats a party and a connected POS settles its check."
       : "No table session in this window carries the timestamps this needs.",
   };
   const seatToOrder = num(pace.avg_seat_to_order);
@@ -397,7 +421,9 @@ export async function buildAnalysis(opts: {
   }));
 
   // ── Menu mix ───────────────────────────────────────────────────────
-  const menuMix = buildMenuMix(itemMix, neverSold, hasMoney, moneyGap.reason);
+  // Menu mix needs item-level sales, which a close-out never carries.
+  // Keyed off hasChecks so it does not claim a close-out could fill it.
+  const menuMix = buildMenuMix(itemMix, neverSold, hasChecks, checkGap.reason);
 
   // ── Series ─────────────────────────────────────────────────────────
   const monthlyCoverPoints: SeriesPoint[] = monthlyCovers.map((row) => ({
@@ -456,20 +482,28 @@ export async function buildAnalysis(opts: {
 
   // ── Coverage & gaps ────────────────────────────────────────────────
   const gaps: AnalysisResult["coverage"]["gaps"] = [];
+  // Two separate gaps, because they have two separate fixes. Telling an
+  // owner to "connect a POS" when a sixty-second close-out would fill
+  // half the page is how a fixable gap gets treated as permanent.
   if (!hasMoney) {
     gaps.push({
-      source: "POS checks",
-      blocks: ["Average bill", "Median bill", "Per-person average", "Revenue", "Tip rate", "Revenue per seat hour", "Most and least sold items", "Revenue growth"],
-      note: count(bounds.closedChecks) === 0
-        ? "No check has been closed on the POS yet. These fill in on their own once a service runs through it — nothing to import."
-        : "The POS has closed checks, but none inside this window. Widen the range.",
+      source: "Shift close-outs",
+      blocks: ["Revenue", "Per-person average", "Revenue per seat hour", "Revenue growth"],
+      note: "No service has been closed out yet. Enter one night's net sales and covers in Pantry and these fill in.",
+    });
+  }
+  if (!hasChecks) {
+    gaps.push({
+      source: "Item-level sales",
+      blocks: ["Average bill", "Median bill", "Tip rate", "Most and least sold items", "Menu engineering"],
+      note: "A close-out records what a night took, not the individual bills behind it. These need a connected POS — they are not something you can type in.",
     });
   }
   if (count(bounds.tableSessions) === 0) {
     gaps.push({
       source: "Table sessions",
       blocks: ["Seated to first order", "Paid to cleared"],
-      note: "Written when the floor app seats a party and the POS settles its check. Starts as soon as both run on the same service.",
+      note: "Written when the floor app seats a party and a connected POS settles its check.",
     });
   }
   // A window whose data stops early makes every trend look like a

@@ -199,6 +199,24 @@ export type MoneyDayRow = {
 /** Money per service day, from closed checks. Empty until the POS runs. */
 export async function loadMoneyByDay(restaurantId: string, tz: string, from: Date, to: Date) {
   const day = posServiceDay(`"openedAt"`, "$4");
+  // TWO SOURCES, deliberately unioned rather than chosen between.
+  //
+  // Closed checks are the richer source — they carry a check count, a
+  // tip and a distribution, so they give a per-BILL average. The shift
+  // close-out is the source that exists: with no POS in the product,
+  // a manager types the night's net sales and covers, which gives
+  // revenue and a per-PERSON average but no check count at all.
+  //
+  // The NULLs below are load-bearing, not laziness. `checks`, `tips` and
+  // `median_check` are genuinely unknown for a close-out, and returning
+  // 0 for them would let the caller compute an average bill by dividing
+  // by zero-turned-one and print a confident wrong number. Null makes
+  // the caller say "we do not know that yet", which is the truth.
+  //
+  // A day with both — a restaurant that reconnects a POS — yields two
+  // rows and sums to double revenue, so the close-out is EXCLUDED for
+  // any service day that already has closed checks. Checks win because
+  // they are the more granular record.
   return prisma.$queryRawUnsafe<MoneyDayRow[]>(
     `SELECT
       ${day} AS d,
@@ -214,6 +232,29 @@ export async function loadMoneyByDay(restaurantId: string, tz: string, from: Dat
       AND ${day} >= $2::date
       AND ${day} <= $3::date
     GROUP BY 1
+
+    UNION ALL
+
+    SELECT
+      s."serviceDate"          AS d,
+      NULL::bigint             AS checks,
+      SUM(s."netSalesCents")   AS revenue,
+      SUM(s."netSalesCents")   AS subtotal,
+      NULL::bigint             AS tips,
+      SUM(s."covers")          AS guests,
+      NULL::numeric            AS median_check
+    FROM "ShiftSalesEntry" s
+    WHERE s."restaurantId" = $1
+      AND s."serviceDate" >= $2::date
+      AND s."serviceDate" <= $3::date
+      AND NOT EXISTS (
+        SELECT 1 FROM "Check" c
+         WHERE c."restaurantId" = $1
+           AND c.status = 'closed'
+           AND ${posServiceDay(`c."openedAt"`, "$4")} = s."serviceDate"
+      )
+    GROUP BY 1
+
     ORDER BY 1 DESC`,
     ...scope(restaurantId, from, to), tz,
   );
@@ -238,16 +279,39 @@ export async function loadMonthlyCovers(restaurantId: string) {
 }
 
 export async function loadMonthlyRevenue(restaurantId: string, tz: string) {
+  // Same two sources as loadMoneyByDay, same precedence: a service day
+  // with closed checks ignores its close-out so revenue is never counted
+  // twice. Summed per month AFTER the union, so a month that switched
+  // from one source to the other mid-way still totals correctly.
   return prisma.$queryRawUnsafe<MonthRow[]>(
-    `SELECT
-      TO_CHAR(${posServiceDay(`"openedAt"`, "$2")}, 'YYYY-MM') AS month,
-      NULL::bigint                                             AS covers,
-      COUNT(*)                                                 AS parties,
-      SUM("totalCents")                                        AS revenue
-    FROM "Check"
-    WHERE "restaurantId" = $1 AND status = 'closed'
-    GROUP BY 1
-    ORDER BY 1`,
+    `SELECT month, NULL::bigint AS covers, SUM(parties) AS parties, SUM(revenue) AS revenue
+     FROM (
+       SELECT
+         TO_CHAR(${posServiceDay(`"openedAt"`, "$2")}, 'YYYY-MM') AS month,
+         COUNT(*)                                                 AS parties,
+         SUM("totalCents")                                        AS revenue
+       FROM "Check"
+       WHERE "restaurantId" = $1 AND status = 'closed'
+       GROUP BY 1
+
+       UNION ALL
+
+       SELECT
+         TO_CHAR(s."serviceDate", 'YYYY-MM') AS month,
+         0::bigint                           AS parties,
+         SUM(s."netSalesCents")              AS revenue
+       FROM "ShiftSalesEntry" s
+       WHERE s."restaurantId" = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM "Check" c
+            WHERE c."restaurantId" = $1
+              AND c.status = 'closed'
+              AND ${posServiceDay(`c."openedAt"`, "$2")} = s."serviceDate"
+         )
+       GROUP BY 1
+     ) sources
+     GROUP BY month
+     ORDER BY month`,
     restaurantId, tz,
   );
 }

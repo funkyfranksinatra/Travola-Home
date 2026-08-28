@@ -32,7 +32,7 @@ type Overview = {
   };
   nextForecast: null | { date: string; expectedCovers: number | null; low: number | null; high: number | null; confidence: string };
   security: { adminPasscodeSet: boolean };
-  links: { floor: string; pos: string };
+  links: { floor: string; pantry: string };
 };
 
 const GOOD_WHEN: Record<string, "up" | "down" | "neutral"> = {
@@ -164,7 +164,7 @@ export default function OverviewPage() {
   );
 }
 
-/** The floor manager and the POS, stated plainly and immediately under the
+/** The floor manager and Pantry, stated plainly and immediately under the
  *  restaurant's name.
  *
  *  This replaces a dropdown in the top bar labelled "Open". That control
@@ -188,10 +188,10 @@ function AppLinks({ data }: { data: Overview }) {
       tone: "text-ai",
     },
     {
-      key: "pos",
-      name: "POS",
-      hint: "Orders, the kitchen display, and checks.",
-      href: data.links.pos,
+      key: "pantry",
+      name: "Pantry",
+      hint: "Inventory, and the close-out that records what each service took.",
+      href: data.links.pantry,
       tone: "text-state-avail",
     },
   ].filter((app) => app.href);
@@ -204,7 +204,7 @@ function AppLinks({ data }: { data: Overview }) {
         <div>
           <p className="label">Your other two apps</p>
           <h2 className="text-lg font-semibold text-ink-50 mt-1 tracking-tight">
-            Open the floor manager or the POS
+            Open the floor manager or Pantry
           </h2>
         </div>
         <p className="hidden sm:block text-xs text-ink-400 text-right max-w-[34ch]">
@@ -418,7 +418,7 @@ function Attention({ data }: { data: Overview }) {
   if (data.subscription.cancelAtPeriodEnd && data.subscription.currentPeriodEnd) {
     items.push({
       tone: "warn",
-      text: `Your subscription ends ${dateLabel(data.subscription.currentPeriodEnd.slice(0, 10))}. After that the floor manager and the POS stop.`,
+      text: `Your subscription ends ${dateLabel(data.subscription.currentPeriodEnd.slice(0, 10))}. After that the floor manager and Pantry stop.`,
       href: "/billing", cta: "Keep it",
     });
   }

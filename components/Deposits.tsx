@@ -520,7 +520,7 @@ export function Deposits() {
           <Card className="p-5">
             <SectionHeading
               title="Tips"
-              note="Card tips are deposited with the rest of the card revenue. Travola cannot send a tip to a server's own account — this records how you distribute them, so the POS and the reports say the same thing you do."
+              note="Card tips are deposited with the rest of the card revenue. Travola cannot send a tip to a server's own account — this records how you distribute them, so the reports say the same thing you do."
             />
             <div className="flex flex-wrap gap-2">
               {([

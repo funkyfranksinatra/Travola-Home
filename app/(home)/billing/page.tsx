@@ -97,7 +97,7 @@ export default function BillingPage() {
                 Cancelling{sub.currentPeriodEnd ? ` on ${dateLabel(sub.currentPeriodEnd.slice(0, 10))}` : ""}.
               </p>
               <p className="text-xs text-ink-400 mt-1">
-                Until then everything keeps working. After that the floor manager and the POS stop accepting sign-ins.
+                Until then everything keeps working. After that the floor manager and Pantry stop accepting sign-ins.
                 Your data stays and can be exported.
               </p>
             </div>
@@ -210,7 +210,7 @@ export default function BillingPage() {
               <p className="text-sm text-ink-200">
                 Your subscription will run to the end of the current period
                 {sub.currentPeriodEnd ? ` (${dateLabel(sub.currentPeriodEnd.slice(0, 10))})` : ""} and then stop. The
-                floor manager and the POS stop accepting sign-ins at that point. Your data is not deleted — export it
+                floor manager and Pantry stop accepting sign-ins at that point. Your data is not deleted — export it
                 any time from the Data tab.
               </p>
               <Field label="What made you cancel?" hint="Optional, and it genuinely gets read.">

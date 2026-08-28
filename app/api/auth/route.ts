@@ -1,6 +1,6 @@
 // app/api/auth/route.ts — sign in, sign out, and prove admin.
 //
-// The same restaurant name + passcode that opens Travola-OS and the POS.
+// The same restaurant name + passcode that opens Travola-OS and Pantry.
 // One credential across three products is the whole point: a restaurant
 // sets a code once and it works everywhere.
 import { NextResponse } from "next/server";

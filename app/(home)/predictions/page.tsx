@@ -36,7 +36,7 @@ type Payload = {
 
 export default function PredictionsPage() {
   const [data, setData] = useState<Payload | null>(null);
-  const [links, setLinks] = useState<{ floor: string; pos: string }>({ floor: "", pos: "" });
+  const [links, setLinks] = useState<{ floor: string; pantry: string }>({ floor: "", pantry: "" });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

@@ -207,7 +207,7 @@ export default function AnalysisPage() {
             <div className="card p-5">
               <SectionHead
                 title="Revenue by month"
-                note="Begins the month the POS went live — earlier months have covers but no money."
+                note="Begins the first month with sales on record — earlier months have covers but no money."
               />
               {data.series.monthlyRevenue.length ? (
                 <AreaChart
@@ -217,7 +217,7 @@ export default function AnalysisPage() {
                   height={220}
                 />
               ) : (
-                <Empty>No POS revenue recorded yet.</Empty>
+                <Empty>No revenue recorded yet.</Empty>
               )}
             </div>
           </section>
@@ -527,7 +527,7 @@ function Staff({ data }: { data: AnalysisResult }) {
         />
       </div>
       <div className="card p-5 lg:col-span-2 overflow-x-auto">
-        <SectionHead title="By server" note="Covers and turn come from the floor; average bill joins in from the POS." />
+        <SectionHead title="By server" note="Covers and turn come from the floor; average bill needs item-level sales from a connected POS." />
         <table className="data-table text-sm min-w-[520px]">
           <thead>
             <tr>

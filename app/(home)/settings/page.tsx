@@ -22,7 +22,7 @@ type Settings = {
     locationName: string; address: string;
   };
   inventory: { tables: number; floors: number; menuItems: number; staff: number };
-  links: { floor: string; pos: string };
+  links: { floor: string; pantry: string };
   dayNames: string[];
 };
 
@@ -107,7 +107,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title={data.restaurant.name}
-        note="These settings are shared with the floor manager and the POS — changing them here changes them everywhere."
+        note="These settings are shared with the floor manager and Pantry — changing them here changes them everywhere."
         right={
           <div className="flex flex-wrap gap-2">
           <Chip>{plural(data.inventory.tables, "table")}</Chip>
@@ -137,7 +137,7 @@ export default function SettingsPage() {
               label="Restaurant name"
               hint={
                 name.trim() !== data.restaurant.name
-                  ? "Changing this changes the sign-in name for the floor manager, the POS and Travola Home."
+                  ? "Changing this changes the sign-in name for the floor manager, Pantry and Travola Home."
                   : "Typed at sign-in. Apostrophes and capitalisation do not matter."
               }
             >
@@ -266,13 +266,13 @@ export default function SettingsPage() {
         />
         <div className="grid gap-3 sm:grid-cols-2">
           <LinkRow label="Floor manager" hint="Reservations, waitlist, sections" href={data.links.floor} />
-          <LinkRow label="POS" hint="Orders, kitchen, checks" href={data.links.pos} />
+          <LinkRow label="Pantry" hint="Inventory and the shift close-out" href={data.links.pantry} />
         </div>
       </Card>
 
       <div className="no-print sticky bottom-4 flex justify-end">
         <div className="card p-3 flex items-center gap-3 shadow-2xl">
-          <span className="text-xs text-ink-400 px-1">Hours, days and service &mdash; shared with the floor manager and the POS</span>
+          <span className="text-xs text-ink-400 px-1">Hours, days and service &mdash; shared with the floor manager and Pantry</span>
           <Button tone="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save settings"}</Button>
         </div>
       </div>

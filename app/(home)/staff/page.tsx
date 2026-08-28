@@ -69,7 +69,7 @@ export default function StaffPage() {
       <PageHeader
         eyebrow="Logins"
         title="Access & credentials"
-        note="Staff sign in to the POS with a four-digit PIN. The restaurant code opens all three apps."
+        note="Staff sign in with a four-digit PIN. The restaurant code opens all three apps."
         right={
           <div className="flex gap-2 flex-wrap">
             <Chip tone="good">{active.length} with access</Chip>
@@ -230,7 +230,7 @@ function Credentials({ adminSet, restaurantName, onSaved }: {
   return (
     <section className="grid gap-4 lg:grid-cols-2">
       <Card className="flex flex-col">
-        <SectionHeading title="Restaurant code" note={`Opens the floor manager, the POS and Travola Home for ${restaurantName}.`} />
+        <SectionHeading title="Restaurant code" note={`Opens the floor manager, Pantry and Travola Home for ${restaurantName}.`} />
         <p className="text-sm text-ink-400">
           Change it and everyone will need the new four digits. Managers who have a device signed in stay signed in
           until they sign out.

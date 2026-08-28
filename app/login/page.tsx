@@ -3,7 +3,7 @@
 // app/login/page.tsx — one credential, three products.
 //
 // Intentionally the same two fields, in the same order, with the same
-// wording as the floor app and the POS. A manager who has signed into one
+// wording as the floor app and Pantry. A manager who has signed into one
 // has signed into all three; making this screen look clever would only
 // make them wonder whether it wants something different.
 //
@@ -86,7 +86,7 @@ export default function LoginPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-[-0.03em] text-ink-50">Sign in</h1>
             <p className="text-sm text-ink-400 mt-2 leading-relaxed">
-              Use the same restaurant name and code as the floor manager and the POS.
+              Use the same restaurant name and code as the floor manager and Pantry.
             </p>
           </div>
 
@@ -137,7 +137,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-ink-400/70 mt-5 text-center leading-relaxed">
-          Travola Home is the account and analysis view. The floor manager and the POS sign in with this same code.
+          Travola Home is the account and analysis view. The floor manager and Pantry sign in with this same code.
         </p>
       </div>
     </div>
